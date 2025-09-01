@@ -130,7 +130,7 @@ flowchart TB
 ## 5) 컴포넌트 제안(shadcn/ui)
 
 Header(상태 배지/ZIP 버튼), ScriptInput(shared), SceneEditor, PromptReviewer,
-ImageGrid, VideoGrid, NarrationPanel, ConfirmFooter, Toast/Progress
+ImageGrid, VideoGrid, NarrationPanel, ConfirmFooter
 
 ---
 
