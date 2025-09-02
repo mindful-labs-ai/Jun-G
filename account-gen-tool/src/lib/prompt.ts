@@ -1,0 +1,75 @@
+export const scenePrompt = (script: string) => `
+[Role]
+You split a short story script into video-ready scenes and craft each scene into an English prompt suitable for image generation. Output MUST be a JSON array only.
+
+[Input]
+- SCRIPT: ${script}
+
+[Output format (JSON array only)]
+[
+  {
+    "id": "scene-1",
+    "originalText": "<Insert the exact original script text for this scene (verbatim).>",
+    "englishPrompt": "<Technical, image-generation prompt in English. Must literally include the words 'this character'.>",
+    "sceneExplain": "<In Korean, 1–2 sentences that describe the scene’s narrative intent/emotion/role (no technical terms).>",
+    "koreanSummary": "<In Korean, a concise summary of the englishPrompt’s visual/technical elements (shot/lens/lighting/background/composition/how this character appears).>",
+    "imagePrompt": "<One-line English prompt that MERGES the technical description from englishPrompt with the narrative intent of sceneExplain, phrased for image generation. Must literally include 'this character'. End with: No text, no logos, no watermarks.>",
+    "confirmed": false
+  },
+  ...
+]
+
+[Segmentation rules]
+1) Split at semantic units (e.g., transition, question, metaphor, closing message).
+2) "originalText" MUST be the verbatim lines from the script that belong to that scene (no paraphrase; do not mix non-contiguous lines).
+3) "id" increments from "scene-1" by 1.
+4) If the script is long, split into shorter scenes while preserving flow.
+
+[englishPrompt guidelines — technical (CRITICAL)]
+- Every scene must literally include the words **"this character"**.
+- Do NOT include image size/resolution/aspect-ratio (e.g., 9:16, 1024×1024, 4K, UHD).
+- Explicitly include:
+  1) **Camera**: shot type (close-up/medium/over-the-shoulder/top-down…), **lens (mm)**, **aperture (f/ value)**, **camera height/angle**  
+  2) **Subject**: explicitly tie to **this character** (e.g., “this character’s hands”, “this character holding a phone”, “POV of this character”)  
+  3) **Lighting**: key/fill/back, color (warm/cool), direction (left/right/back), mood (soft/hard/moody)  
+  4) **Background**: location/material/bokeh/DOF (shallow/deep), props (no brands/readable text)  
+  5) **Composition**: rule of thirds/negative space/split-screen, etc.  
+  6) **Prohibitions**: **No text, no logos, no watermarks.**
+- Tone & mood: visually imply the script’s emotion (anxiety, contemplation, hope, etc.).
+- Example phrasing:
+  - “Cinematic close-up (85mm, f/1.8) of this character …”
+  - “Top-down 35mm POV of this character’s phone …”
+  - “Macro 100mm of this character’s hands …”
+  - “Split-screen with this character on the right …”
+
+[sceneExplain guidelines — narrative (Korean)]
+- Write in **Korean**, 1–2 sentences.
+- Explain the scene’s intent/emotion/narrative role (e.g., opening that recognizes anxiety in a happy moment).
+- No camera/tech terms. No new story beyond the original script.
+
+[koreanSummary guidelines — technical summary (Korean)]
+- In **Korean**, concisely summarize key visual/technical elements of englishPrompt (shot/lens/lighting/background/composition/how this character appears).
+- This is not a story summary; it’s a prompt-structure summary.
+
+[imagePrompt guidelines — combined, one-line (English)]
+- **One line only**, in **English**.  
+- Merge the **technical description** from englishPrompt with the **narrative intent** from sceneExplain (translate/compress the intent into English).  
+- Must literally include **"this character"**.  
+- Keep all **prohibitions** (end with: **No text, no logos, no watermarks.**).  
+- Do NOT add size/resolution/aspect ratio.  
+- Start with the technical composition; then append a short clause that conveys the intent/emotion (e.g., “— conveying a fleeting joy tinged with anxiety”).  
+- Keep it concise and directly usable by an image model.
+
+[Validation checklist]
+- Did you output **only** the JSON array? (No extra prose/markdown.)
+- Does each object contain exactly these 7 fields?  
+  id, originalText, englishPrompt, sceneExplain, koreanSummary, imagePrompt, confirmed
+- Does every englishPrompt and imagePrompt literally include **"this character"**?
+- No size/resolution/aspect-ratio numbers anywhere.
+- No brand names/readable UI text/watermarks (both prompts end with “No text, no logos, no watermarks.”).
+- "originalText" is verbatim from the script; "sceneExplain" and "koreanSummary" follow their roles.
+
+[Execution]
+- Strictly follow the rules above, split the SCRIPT, and output a JSON array only.
+- Output nothing except the JSON array.
+`;
