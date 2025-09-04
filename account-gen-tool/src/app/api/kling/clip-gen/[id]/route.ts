@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export interface ImageToVideoRequest {
   image_url?: string; // 이미지 URL
   image_base64?: string; // Base64 인코딩된 이미지 start 프레임
