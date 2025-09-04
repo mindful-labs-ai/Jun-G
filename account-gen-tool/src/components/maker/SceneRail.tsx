@@ -8,7 +8,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
-import { Check, ImageIcon, Video } from "lucide-react";
+import { Check, ImageIcon, Text, Video, X } from "lucide-react";
 import type {
   Scene,
   GeneratedImage,
@@ -18,8 +18,8 @@ import { Separator } from "../ui/separator";
 
 type Props = {
   scenes: Scene[];
-  images: GeneratedImage[];
-  clips: GeneratedClip[];
+  images: Map<string, GeneratedImage>;
+  clips: Map<string, GeneratedClip>;
   currentSceneId: string | null;
   onSelect: (id: string) => void;
 };
@@ -35,10 +35,8 @@ export default memo(function SceneRail({
     <div className="sticky top-[56px] z-10 bg-background border-b">
       <div className="py-2 flex items-center gap-2 overflow-x-auto no-scrollbar">
         {scenes.map((s) => {
-          const sceneImages = images.filter((i) => i.sceneId === s.id);
-          const sceneClips = clips.filter((c) =>
-            sceneImages.some((i) => i.id === c.imageId)
-          );
+          const sceneImage = images.get(s.id);
+          const sceneClip = clips.get(s.id);
           const active = s.id === currentSceneId;
 
           return (
@@ -62,16 +60,34 @@ export default memo(function SceneRail({
                         variant={s.confirmed ? "default" : "outline"}
                         className="px-1"
                       >
-                        <Check className="w-3 h-3 mr-1" />
-                        {s.confirmed ? "확정" : "대기"}
+                        <Text className="w-3 h-3 mr-1" />
+                        {s.confirmed ? (
+                          <Check className="w-3 h-3 mr-1" />
+                        ) : (
+                          <X className="w-3 h-3 mr-1" />
+                        )}
                       </Badge>
-                      <Badge variant="outline" className="px-1">
-                        <ImageIcon className="w-3 h-3 mr-1" />
-                        {sceneImages.length}
+                      <Badge
+                        variant={sceneImage?.confirmed ? "default" : "outline"}
+                        className="px-1"
+                      >
+                        <ImageIcon className="w-4 h-4 mx-1" />
+                        {sceneImage?.confirmed ? (
+                          <Check className="w-3 h-3 mr-1" />
+                        ) : (
+                          <X className="w-3 h-3 mr-1" />
+                        )}
                       </Badge>
-                      <Badge variant="outline" className="px-1">
-                        <Video className="w-3 h-3 mr-1" />
-                        {sceneClips.length}
+                      <Badge
+                        variant={sceneClip?.confirmed ? "default" : "outline"}
+                        className="px-1"
+                      >
+                        <Video className="w-4 h-4 mx-1" />
+                        {sceneClip?.confirmed ? (
+                          <Check className="w-3 h-3 mr-1" />
+                        ) : (
+                          <X className="w-3 h-3 mr-1" />
+                        )}
                       </Badge>
                     </div>
                   </div>

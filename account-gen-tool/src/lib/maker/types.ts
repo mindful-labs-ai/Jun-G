@@ -14,21 +14,30 @@ export interface ScenesState {
   order: string[];
 }
 
+export interface UploadedImage {
+  name: string;
+  base64: string;
+  dataUrl: string;
+  mimeType: string;
+}
+
 export interface GeneratedImage {
-  id: string;
+  status: "idle" | "pending" | "succeeded" | "failed";
   sceneId: string;
-  url: string;
-  prompt: string;
+  dataUrl?: string;
   timestamp: number;
   confirmed: boolean;
+  error?: string;
 }
 
 export interface GeneratedClip {
-  id: string;
-  imageId: string;
-  url: string;
-  duration: number;
-  thumbnail: string;
+  status: "idle" | "pending" | "queueing" | "succeeded" | "failed";
+  sceneId: string;
+  taskUrl?: string;
+  dataUrl?: string;
+  timestamp: number;
+  error?: string;
+  duration?: number;
   confirmed: boolean;
 }
 

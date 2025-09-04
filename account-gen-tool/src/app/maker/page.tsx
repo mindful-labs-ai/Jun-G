@@ -17,7 +17,7 @@ import ResetDialog from "@/components/maker/ResetDialog";
 import ScriptEditDialog from "@/components/maker/ScriptEditDialog";
 import SceneRail from "@/components/maker/SceneRail";
 import SceneCanvas from "@/components/maker/SceneCanvas";
-import { nowId } from "@/lib/maker/utils";
+import { notify, nowId, stripDataUrlPrefix } from "@/lib/maker/utils";
 import {
   GeneratedClip,
   GeneratedImage,
@@ -25,14 +25,17 @@ import {
   NarrationSettings,
   ResetType,
   Scene,
+  ScenesState,
+  UploadedImage,
 } from "@/lib/maker/types";
 import VisualPipeline from "@/components/maker/VisualPipeLine";
-
-/** Map + order 상태 타입 */
-type ScenesState = {
-  byId: Map<string, Scene>;
-  order: string[]; // 화면 표시에 사용할 순서의 정답
-};
+import { tempScenes } from "@/components/temp/tempJson";
+import {
+  SeeDanceImageToVideoResponse,
+  TaskResponse,
+} from "../api/seedance/clip-gen/[id]/route";
+import { KlingImageToVideoResponse } from "../api/kling/clip-gen/[id]/route";
+import { KlingImageToVideoStatusResponse } from "../api/kling/[id]/route";
 
 export default function MakerPage() {
   const router = useRouter();
@@ -43,10 +46,19 @@ export default function MakerPage() {
     byId: new Map(),
     order: [],
   });
-  const [images, setImages] = useState<GeneratedImage[]>([]);
-  const [clips, setClips] = useState<GeneratedClip[]>([]);
+
+  const [imagesByScene, setImagesByScene] = useState<
+    Map<string, GeneratedImage>
+  >(new Map());
+  const [clipsByScene, setClipsByScene] = useState<Map<string, GeneratedClip>>(
+    new Map()
+  );
   const [narration, setNarration] = useState<GeneratedNarration | null>(null);
   const [currentSceneId, setCurrentSceneId] = useState<string | null>(null);
+  const [uploadedImage, setUploadedImage] = useState<UploadedImage | null>(
+    null
+  );
+  const [aiType, setAiType] = useState<"kling" | "seedance">("kling");
 
   // UI/flow state
   const [editingScene, setEditingScene] = useState<string | null>(null);
@@ -58,8 +70,6 @@ export default function MakerPage() {
 
   // loading flags
   const [generatingScenes, setGeneratingScenes] = useState(false);
-  const [generatingImages, setGeneratingImages] = useState<string[]>([]);
-  const [generatingClips, setGeneratingClips] = useState<string[]>([]);
   const [generatingNarration, setGeneratingNarration] = useState(false);
 
   // funnel state
@@ -90,6 +100,16 @@ export default function MakerPage() {
     [scenesState]
   );
 
+  const images = useMemo(
+    () => Array.from(imagesByScene.values()),
+    [imagesByScene]
+  );
+
+  const clips = useMemo(
+    () => Array.from(clipsByScene.values()),
+    [clipsByScene]
+  );
+
   const deferredScenes = useDeferredValue(scenes);
 
   // derived project status
@@ -112,13 +132,7 @@ export default function MakerPage() {
 
   const allConfirmed = status.scenes === scenes.length;
 
-  const zipReady = useMemo(
-    () =>
-      status.totalClips > 0 &&
-      status.clips === status.totalClips &&
-      status.narrationDone,
-    [status]
-  );
+  const allImagesConfirmed = status.images === scenes.length;
 
   /* ============ init / cleanup ============ */
   useEffect(() => {
@@ -165,41 +179,177 @@ export default function MakerPage() {
     }
   };
 
-  /* ============ notifications (stub) ============ */
-  const notify = (msg: string) => alert(msg);
-
   /* ============ ZIP (stub) ============ */
-  const handleZipDownload = () => {
-    if (!zipReady)
-      return notify("모든 클립과 나레이션을 확정해야 다운로드할 수 있습니다.");
-    const confirmedClips = clips.filter((c) => c.confirmed);
-    const fileList = [
-      "project-info.json",
-      "narration.mp3",
-      ...confirmedClips.map((_, i) => `clip-${i + 1}.mp4`),
-      "scenes.json",
-      "settings.json",
-    ];
-    const fakeZipContent = `AI 숏폼 메이커 - 완성된 프로젝트
+  function extFromMime(type?: string) {
+    if (!type) return "bin";
+    const t = type.toLowerCase();
+    if (t.includes("png")) return "png";
+    if (t.includes("jpeg") || t.includes("jpg")) return "jpg";
+    if (t.includes("webp")) return "webp";
+    if (t.includes("gif")) return "gif";
+    if (t.includes("mp4")) return "mp4";
+    if (t.includes("webm")) return "webm";
+    if (t.includes("quicktime") || t.includes("mov")) return "mov";
+    return "bin";
+  }
 
-포함된 파일:
-${fileList.map((f) => `- ${f}`).join("\n")}
+  function buildProxyUrl(
+    srcUrl: string,
+    opts?: { mode?: "view" | "download"; filename?: string }
+  ) {
+    const u = new URL("/api/proxy", window.location.origin);
+    u.searchParams.set("url", srcUrl);
+    if (opts?.mode) u.searchParams.set("mode", opts.mode);
+    if (opts?.filename) u.searchParams.set("filename", opts.filename);
+    return u.toString();
+  }
 
-프로젝트 정보:
-- 총 ${confirmedClips.length}개 클립
-- 나레이션 길이: ${narration?.duration}초
-- 생성 일시: ${new Date().toLocaleString("ko-KR")}
-`;
-    const blob = new Blob([fakeZipContent], { type: "application/zip" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `ai-shortform-project-${Date.now()}.zip`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    notify("영상 소스 다운로드 완료");
+  // 기존 함수 교체: CORS 에러 시 자동으로 프록시로 폴백
+  async function blobFromUrlOrDataUrl(url: string): Promise<Blob> {
+    // data: URL은 직접 fetch 가능
+    if (url.startsWith("data:")) {
+      const res = await fetch(url);
+      return await res.blob();
+    }
+
+    // 1차: 직접 fetch 시도 (CORS 허용되면 굳이 프록시 안 거침)
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) throw new Error(`Status ${res.status}`);
+      return await res.blob();
+    } catch {
+      // 2차: 프록시로 우회
+      const proxied = buildProxyUrl(url, { mode: "download" });
+      const res2 = await fetch(proxied, { cache: "no-store" });
+      if (!res2.ok) throw new Error(`Proxy status ${res2.status}`);
+      return await res2.blob();
+    }
+  }
+
+  function pad2(n: number) {
+    return String(n).padStart(2, "0");
+  }
+
+  // === [교체] ZIP 다운로드 로직 ===
+  const handleZipDownload = async () => {
+    try {
+      // 지표 검사
+      const okImages = Array.from(imagesByScene.entries()).filter(
+        ([, img]) => img.status === "succeeded" && !!img.dataUrl
+      );
+      const okClips = Array.from(clipsByScene.entries()).filter(
+        ([, clip]) => clip.status === "succeeded" && !!clip.dataUrl
+      );
+
+      if (okImages.length === 0 && okClips.length === 0) {
+        notify("다운로드할 완료된 이미지/클립이 없습니다.");
+        return;
+      }
+
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+
+      // 폴더 구성
+      const imagesFolder = zip.folder("images");
+      const clipsFolder = zip.folder("clips");
+
+      // 파일명은 scenesState.order 순서를 기준으로 정렬
+      const indexOf = (sceneId: string) =>
+        Math.max(0, scenesState.order.indexOf(sceneId));
+
+      // 이미지 추가
+      await Promise.all(
+        okImages.map(async ([sceneId, img]) => {
+          const blob = await blobFromUrlOrDataUrl(img.dataUrl!);
+          const ext = extFromMime(blob.type) || "png";
+          const idx = indexOf(sceneId);
+          const filename = `scene-${pad2(idx + 1)}-${sceneId}.${ext}`;
+          imagesFolder!.file(filename, await blob.arrayBuffer());
+        })
+      );
+
+      // 클립 추가 (kling/seedance는 보통 URL이므로 fetch->Blob)
+      await Promise.all(
+        okClips.map(async ([sceneId, clip]) => {
+          const blob = await blobFromUrlOrDataUrl(clip.dataUrl!);
+          const ext = extFromMime(blob.type) || "mp4";
+          const idx = indexOf(sceneId);
+          const filename = `scene-${pad2(idx + 1)}-${sceneId}.${ext}`;
+          clipsFolder!.file(filename, await blob.arrayBuffer());
+        })
+      );
+
+      // manifest + scenes 스냅샷
+      const manifest = {
+        generatedAt: new Date().toISOString(),
+        summary: {
+          scenesTotal: scenesState.byId.size,
+          imagesSucceeded: okImages.length,
+          clipsSucceeded: okClips.length,
+        },
+        scenes: scenes.map((s) => ({
+          id: s.id,
+          confirmed: s.confirmed,
+          imagePrompt: (s as any).imagePrompt ?? s.englishPrompt,
+          clipPrompt: (s as any).clipPrompt,
+        })),
+        images: Array.from(imagesByScene.entries()).map(([sceneId, i]) => ({
+          sceneId,
+          status: i.status,
+          confirmed: i.confirmed,
+          timestamp: i.timestamp,
+          hasData: !!i.dataUrl,
+          error: i.error ?? null,
+        })),
+        clips: Array.from(clipsByScene.entries()).map(([sceneId, c]) => ({
+          sceneId,
+          status: c.status,
+          confirmed: c.confirmed,
+          timestamp: c.timestamp,
+          hasData: !!c.dataUrl,
+          providerTaskId: c.taskUrl ?? null,
+          error: c.error ?? null,
+        })),
+      };
+
+      zip.file("manifest.json", JSON.stringify(manifest, null, 2));
+      zip.file(
+        "scenes.json",
+        JSON.stringify(
+          scenes.map((s) => ({
+            id: s.id,
+            originalText: s.originalText,
+            koreanSummary: s.koreanSummary,
+            englishPrompt: s.englishPrompt,
+            imagePrompt: (s as any).imagePrompt ?? s.englishPrompt,
+            clipPrompt: (s as any).clipPrompt ?? null,
+            confirmed: s.confirmed,
+          })),
+          null,
+          2
+        )
+      );
+
+      // 압축 생성 & 다운로드
+      const blob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const ts = new Date()
+        .toISOString()
+        .replace(/[:.]/g, "-")
+        .replace("T", "_")
+        .replace("Z", "");
+      a.href = url;
+      a.download = `ai-shortform-assets_${ts}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      notify("ZIP 다운로드가 시작되었습니다.");
+    } catch (err) {
+      console.error(err);
+      notify(`압축 중 오류: ${err}`);
+    }
   };
 
   /* ============ Script edit ============ */
@@ -217,8 +367,8 @@ ${fileList.map((f) => `- ${f}`).join("\n")}
       setScript(tempScript);
       localStorage.setItem("ai-shortform-script", tempScript);
       setScenesState({ byId: new Map(), order: [] });
-      setImages([]);
-      setClips([]);
+      setImagesByScene(new Map());
+      setClipsByScene(new Map());
       setNarration(null);
       setEditingScriptOpen(false);
       notify("스크립트 수정됨, 하위 단계가 모두 초기화되었습니다.");
@@ -270,6 +420,17 @@ ${fileList.map((f) => `- ${f}`).join("\n")}
     });
   };
 
+  const updateCurrentClipPrompt = (id: string, v: string) => {
+    if (!id) return;
+    setScenesState((prev) => {
+      const s = prev.byId.get(id);
+      if (!s) return prev;
+      const byId = new Map(prev.byId);
+      byId.set(id, { ...s, clipPrompt: v });
+      return { ...prev, byId };
+    });
+  };
+
   // 현재 씬
   const currentScene = useMemo(
     () =>
@@ -309,84 +470,416 @@ ${fileList.map((f) => `- ${f}`).join("\n")}
     }
   };
 
-  const generateImageForScene = async (sceneId: string) => {
-    const scene = scenesState.byId.get(sceneId);
-    if (!scene) return;
-    setGeneratingImages((prev) => [...prev, sceneId]);
-    await new Promise((r) => setTimeout(r, 1000 + Math.random() * 1500)); // stub
-    const newImage: GeneratedImage = {
-      id: nowId("image"),
+  const handleGenerateImage = async (sceneId: string, queue?: boolean) => {
+    if (!queue) {
+      if (!uploadedImage) {
+        notify("참조 이미지를 선택해주세요.");
+        return;
+      }
+      return;
+    }
+
+    // 1) pending placeholder 삽입
+    const placeholder: GeneratedImage = {
+      status: "pending",
       sceneId,
-      url: `/placeholder.svg?height=300&width=400&query=${encodeURIComponent(
-        scene.englishPrompt
-      )}`,
-      prompt: scene.englishPrompt,
       timestamp: Date.now(),
       confirmed: false,
     };
-    setImages((prev) => [...prev, newImage]);
-    setGeneratingImages((prev) => prev.filter((id) => id !== sceneId));
-    notify("새 이미지가 생성되었습니다.");
+    setImagesByScene((prev) => {
+      const next = new Map(prev);
+      next.set(sceneId, placeholder);
+      return next;
+    });
+
+    try {
+      const prompt = scenesState.byId.get(sceneId)?.imagePrompt;
+
+      const body = {
+        prompt,
+        imageBase64: uploadedImage?.base64,
+        imageMimeType: uploadedImage?.mimeType,
+      };
+
+      const res = await fetch(`/api/image-gen/${sceneId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          imageBase64: uploadedImage?.base64,
+          imageMimeType: uploadedImage?.mimeType,
+        }),
+      });
+
+      console.log(body);
+
+      if (!res.ok) throw new Error("이미지 생성 실패");
+
+      const json = await res.json();
+
+      console.log(json);
+
+      setImagesByScene((prev) => {
+        const next = new Map(prev);
+        next.set(sceneId, {
+          status: "succeeded",
+          sceneId,
+          dataUrl: `data:image/png;base64,${json.generatedImage}`,
+          timestamp: Date.now(),
+          confirmed: false,
+        });
+        console.log(next);
+        return next;
+      });
+    } catch (e) {
+      setImagesByScene((prev) => {
+        const next = new Map(prev);
+        next.set(sceneId, {
+          status: "failed",
+          sceneId,
+          timestamp: Date.now(),
+          confirmed: false,
+          error: `생성 실패 : ${e}`,
+        });
+        return next;
+      });
+    }
   };
 
-  const handleGenerateImage = (sceneId: string) => {
-    const existingConfirmedImgs = images.filter(
-      (i) => i.sceneId === sceneId && i.confirmed
-    );
-    const affectedClips = clips.filter((c) =>
-      existingConfirmedImgs.some((img) => img.id === c.imageId)
-    );
-    if (affectedClips.length > 0) {
-      openConfirm("image", () => {
-        setClips((prev) =>
-          prev.filter(
-            (c) => !existingConfirmedImgs.some((img) => img.id === c.imageId)
-          )
-        );
-        generateImageForScene(sceneId);
-      });
+  const generateAllImages = () => {
+    if (scenes.length <= 0) {
+      notify("장면을 먼저 만들어주세요.");
       return;
     }
-    generateImageForScene(sceneId);
+    if (!uploadedImage) {
+      notify("참조 이미지를 선택해주세요.");
+      return;
+    }
+    if (confirm("모든 장면에 대한 이미지를 만듭니다.")) {
+      scenesState.order.forEach((id) => {
+        void handleGenerateImage(id, true);
+      });
+    }
   };
 
-  const confirmImage = (imageId: string) => {
-    setImages((prev) =>
-      prev.map((i) => (i.id === imageId ? { ...i, confirmed: true } : i))
-    );
-    notify("이미지가 확정되었습니다.");
+  const confirmImage = (sceneId: string) => {
+    setImagesByScene((prev) => {
+      const img = prev.get(sceneId);
+      if (!img) return prev;
+      const next = new Map(prev);
+      next.set(sceneId, { ...img, confirmed: !img.confirmed });
+      return next;
+    });
   };
 
-  const generateClip = async (imageId: string) => {
-    setGeneratingClips((prev) => [...prev, imageId]);
-    await new Promise((r) => setTimeout(r, 1200 + Math.random() * 1800)); // stub
-    const image = images.find((i) => i.id === imageId);
-    if (!image) return;
-    const newClip: GeneratedClip = {
-      id: nowId("clip"),
-      imageId,
-      url: `/placeholder.svg?height=200&width=300&query=video-clip`,
-      duration: Math.floor(Math.random() * 10) + 5,
-      thumbnail: image.url,
+  const confirmAllImages = () => {
+    setImagesByScene((prev) => {
+      if (prev.size === 0) return prev;
+      const next = new Map(prev);
+      for (const [sceneId, img] of next) {
+        if (!img.confirmed) next.set(sceneId, { ...img, confirmed: true });
+      }
+      return next;
+    });
+  };
+
+  const generateClip = async (
+    sceneId: string,
+    aiType: "kling" | "seedance",
+    queue?: boolean
+  ) => {
+    const baseImage = imagesByScene.get(sceneId)?.dataUrl;
+
+    if (!queue) {
+      if (!baseImage) {
+        notify("클립이 될 이미지를 먼저 만들어주세요.");
+        return;
+      }
+
+      if (!confirm("이전 클립은 삭제됩니다. 진행하시겠습니까?")) {
+        return;
+      }
+    }
+    // 1) pending placeholder 삽입
+    const placeholder: GeneratedClip = {
+      status: "pending",
+      sceneId,
+      timestamp: Date.now(),
       confirmed: false,
     };
-    setClips((prev) => [...prev, newClip]);
-    setGeneratingClips((prev) => prev.filter((id) => id !== imageId));
-    notify(`${newClip.duration}초 클립이 생성되었습니다.`);
+    setClipsByScene((prev) => {
+      const next = new Map(prev);
+      next.set(sceneId, placeholder);
+      return next;
+    });
+
+    const prompt = scenesState.byId.get(sceneId)?.clipPrompt;
+
+    // kling 요청 보내기
+    if (aiType === "kling") {
+      try {
+        const body = {
+          duration: "5",
+          image_base64: stripDataUrlPrefix(baseImage),
+          prompt,
+          negative_prompt: null,
+          cfg_scale: 0.5,
+        };
+
+        const response = await fetch(`/api/kling/clip-gen/${sceneId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        console.log(body);
+
+        if (!response.ok) throw new Error("이미지 생성 실패");
+
+        const json = (await response.json()) as KlingImageToVideoResponse;
+
+        console.log(json);
+
+        if (json.code !== 0) throw new Error("이미지 생성 실패");
+
+        setClipsByScene((prev) => {
+          const next = new Map(prev);
+          next.set(sceneId, {
+            status: "queueing",
+            taskUrl: json?.data?.task_id,
+            sceneId,
+            timestamp: Date.now(),
+            confirmed: false,
+          });
+          console.log(next);
+          return next;
+        });
+      } catch (error) {
+        setClipsByScene((prev) => {
+          const next = new Map(prev);
+          next.set(sceneId, {
+            status: "failed",
+            sceneId,
+            timestamp: Date.now(),
+            confirmed: false,
+            error: `생성 실패 : ${error}`,
+          });
+          return next;
+        });
+      }
+    }
+
+    // seedance 요청 보내기
+    if (aiType === "seedance") {
+      try {
+        const body = {
+          model: "seedance-1-0-pro-250528",
+          content: [
+            {
+              type: "text",
+              text: prompt,
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: baseImage,
+              },
+            },
+          ],
+        };
+
+        const response = await fetch(`/api/seedance/clip-gen/${sceneId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        console.log(body);
+
+        if (!response.ok) throw new Error("이미지 생성 실패");
+
+        const json = (await response.json()) as SeeDanceImageToVideoResponse;
+
+        console.log(json);
+
+        setClipsByScene((prev) => {
+          const next = new Map(prev);
+          next.set(sceneId, {
+            status: "queueing",
+            taskUrl: json.id,
+            sceneId,
+            timestamp: Date.now(),
+            confirmed: false,
+          });
+          console.log(next);
+          return next;
+        });
+      } catch (error) {
+        setClipsByScene((prev) => {
+          const next = new Map(prev);
+          next.set(sceneId, {
+            status: "failed",
+            sceneId,
+            timestamp: Date.now(),
+            confirmed: false,
+            error: `생성 실패 : ${error}`,
+          });
+          return next;
+        });
+      }
+    }
   };
 
-  const confirmClip = (clipId: string) => {
-    setClips((prev) =>
-      prev.map((c) => (c.id === clipId ? { ...c, confirmed: true } : c))
-    );
-    notify("클립이 확정되었습니다.");
+  const getClip = async ({
+    sceneId,
+    aiType,
+  }: {
+    sceneId: string;
+    aiType: "kling" | "seedance";
+  }) => {
+    const clipId = clipsByScene.get(sceneId)?.taskUrl;
+
+    if (aiType === "kling") {
+      try {
+        const response = await fetch(`/api/kling/${clipId}`, {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error(`Status ${response.status}`);
+        }
+
+        const json = (await response.json()) as KlingImageToVideoStatusResponse;
+
+        console.log(json);
+
+        if (json.data.task_status === "processing") {
+          return;
+        }
+
+        if (json.data.task_status === "submitted") {
+          return;
+        }
+
+        const videoUrl = json.data.task_result?.videos[0]?.url;
+
+        if (videoUrl === undefined || json.message !== "SUCCEED") {
+          throw new Error("비디오 생성 실패");
+        }
+
+        setClipsByScene((prev) => {
+          const next = new Map(prev);
+          next.set(sceneId, {
+            status: "succeeded",
+            taskUrl: clipId,
+            sceneId,
+            dataUrl: videoUrl,
+            timestamp: Date.now(),
+            confirmed: false,
+          });
+          console.log(next);
+          return next;
+        });
+      } catch (error) {
+        setClipsByScene((prev) => {
+          const next = new Map(prev);
+          next.set(sceneId, {
+            status: "failed",
+            sceneId,
+            timestamp: Date.now(),
+            confirmed: false,
+          });
+          console.log(next);
+          return next;
+        });
+        console.log(`kling get clip ERROR! : ${error}`);
+      }
+    }
+
+    if (aiType === "seedance") {
+      try {
+        const response = await fetch(`/api/seedance/${clipId}`, {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error(`Status ${response.status}`);
+        }
+
+        const json = (await response.json()) as TaskResponse;
+
+        if (json.status === "failed" || json.status === "cancled") {
+          throw new Error("API Error!");
+        }
+
+        const videoUrl = json.content.video_url ?? [];
+        if (videoUrl === undefined || json.status !== "succeeded") return;
+
+        setClipsByScene((prev) => {
+          const next = new Map(prev);
+          next.set(sceneId, {
+            status: "succeeded",
+            taskUrl: clipId,
+            sceneId,
+            dataUrl: videoUrl,
+            timestamp: Date.now(),
+            confirmed: false,
+          });
+          console.log(next);
+          return next;
+        });
+      } catch (error) {
+        setClipsByScene((prev) => {
+          const next = new Map(prev);
+          next.set(sceneId, {
+            status: "failed",
+            sceneId,
+            timestamp: Date.now(),
+            confirmed: false,
+          });
+          console.log(next);
+          return next;
+        });
+        console.log(`kling get clip ERROR! : ${error}`);
+      }
+    }
+  };
+
+  const generateAllClips = () => {
+    if (imagesByScene.size < scenes.length) {
+      return notify("이미지를 먼저 만들어주세요.");
+    }
+    if (!confirm("이전 클립은 삭제됩니다. 진행하시겠습니까?")) {
+      return;
+    }
+    if (confirm("모든 이미지를 클립으로 만듭니다.")) {
+      scenesState.order.forEach((id) => {
+        void generateClip(id, aiType, true);
+      });
+    }
+  };
+
+  const confirmClip = (sceneId: string) => {
+    setClipsByScene((prev) => {
+      const clip = prev.get(sceneId);
+      if (!clip) return prev;
+      const next = new Map(prev);
+      next.set(sceneId, { ...clip, confirmed: !clip.confirmed });
+      return next;
+    });
   };
 
   const confirmAllClips = () => {
-    const cnt = clips.filter((c) => !c.confirmed).length;
-    if (cnt === 0) return notify("모든 클립이 이미 확정되었습니다.");
-    setClips((prev) => prev.map((c) => ({ ...c, confirmed: true })));
-    notify(`${cnt}개 클립이 확정되었습니다.`);
+    setClipsByScene((prev) => {
+      if (prev.size === 0) return prev;
+      const next = new Map(prev);
+      for (const [sceneId, clip] of next) {
+        if (!clip.confirmed) next.set(sceneId, { ...clip, confirmed: true });
+      }
+      return next;
+    });
   };
 
   /* ============ Audio: Narration ============ */
@@ -455,8 +948,8 @@ ${fileList.map((f) => `- ${f}`).join("\n")}
   const resetAll = () => {
     if (confirm("초기화 하시겠습니까?")) {
       setScenesState({ byId: new Map(), order: [] });
-      setImages([]);
-      setClips([]);
+      setImagesByScene(new Map());
+      setClipsByScene(new Map());
       setNarration(null);
       setCurrentSceneId(null);
       setCurrentTime(0);
@@ -484,7 +977,6 @@ ${fileList.map((f) => `- ${f}`).join("\n")}
         onEditScript={handleEditScript}
         status={status}
         onZip={handleZipDownload}
-        zipReady={zipReady}
       />
 
       <main className="container mx-auto px-4 py-6">
@@ -492,6 +984,8 @@ ${fileList.map((f) => `- ${f}`).join("\n")}
           <VisualPipeline
             step={step}
             setStep={setStep}
+            aiType={aiType}
+            setAiType={setAiType}
             // scenes
             scenes={deferredScenes}
             generatingScenes={generatingScenes}
@@ -506,37 +1000,38 @@ ${fileList.map((f) => `- ${f}`).join("\n")}
             editingScene={editingScene}
             updatePrompt={updateCurrentScenePrompt}
             // images
-            images={images}
-            generatingImages={generatingImages}
+            images={imagesByScene}
+            uploadRefImage={setUploadedImage}
             onGenerateImage={handleGenerateImage}
+            onGenerateAllImages={generateAllImages}
             onConfirmImage={confirmImage}
+            onConfirmAllImages={confirmAllImages}
+            isConfirmedAllImage={allImagesConfirmed}
             // clips
-            clips={clips}
-            generatingClips={generatingClips}
+            clips={clipsByScene}
             onGenerateClip={generateClip}
+            onGenerateAllClips={generateAllClips}
             onConfirmClip={confirmClip}
             onConfirmAllClips={confirmAllClips}
+            onQueueAction={getClip}
           />
         </div>
 
         <div className="space-y-6">
           <SceneRail
             scenes={deferredScenes}
-            images={images}
-            clips={clips}
+            images={imagesByScene}
+            clips={clipsByScene}
             currentSceneId={currentSceneId}
             onSelect={setCurrentSceneId}
           />
           <SceneCanvas
             step={step as 0 | 1 | 2}
             scene={currentScene}
-            images={images}
-            clips={clips}
-            isGeneratingImage={
-              currentSceneId ? generatingImages.includes(currentSceneId) : false
-            }
-            isGeneratingClipIds={generatingClips}
+            images={imagesByScene}
+            clips={clipsByScene}
             onUpdatePrompt={updateCurrentScenePrompt}
+            onUpdateClipPrompt={updateCurrentClipPrompt}
             onConfirmScene={confirmScene}
             onGenerateImage={handleGenerateImage}
             onConfirmImage={confirmImage}
@@ -654,6 +1149,9 @@ ${fileList.map((f) => `- ${f}`).join("\n")}
               >
                 <HelpCircle className="w-4 h-4" />
                 도움말
+              </Button>
+              <Button onClick={() => applyScenes(tempScenes)}>
+                장면 임시 만들기
               </Button>
             </div>
 

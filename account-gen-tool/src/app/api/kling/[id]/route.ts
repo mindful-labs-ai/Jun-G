@@ -11,6 +11,7 @@ export interface KlingImageToVideoStatusResponse {
 export type KlingTaskStatus =
   | "pending"
   | "processing"
+  | "submitted"
   | "running"
   | "succeed"
   | "failed"

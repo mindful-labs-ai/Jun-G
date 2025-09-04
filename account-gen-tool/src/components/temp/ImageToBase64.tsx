@@ -112,7 +112,7 @@ export function GeminiImageWithUpload() {
     setError(null);
 
     try {
-      const response = await fetch("/api/gen-image", {
+      const response = await fetch("/api/image-gen/scene-1", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

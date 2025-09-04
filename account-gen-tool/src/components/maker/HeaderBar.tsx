@@ -16,7 +16,6 @@ export default function HeaderBar({
   onEditScript,
   status,
   onZip,
-  zipReady,
 }: {
   onBack: () => void;
   onEditScript: () => void;
@@ -30,7 +29,6 @@ export default function HeaderBar({
     narrationDone: boolean;
   };
   onZip: () => void;
-  zipReady: boolean;
 }) {
   return (
     <header className="border-b border-border bg-card sticky top-0 z-10">
@@ -94,19 +92,9 @@ export default function HeaderBar({
           </div>
 
           {/* Right */}
-          <Button
-            onClick={onZip}
-            disabled={!zipReady}
-            className="gap-2"
-            variant={zipReady ? "default" : "secondary"}
-          >
+          <Button onClick={onZip} className="gap-2" variant={"default"}>
             <FileArchive className="w-4 h-4" />
             ZIP 다운로드
-            {zipReady && (
-              <Badge variant="secondary" className="ml-1">
-                준비됨
-              </Badge>
-            )}
           </Button>
         </div>
 

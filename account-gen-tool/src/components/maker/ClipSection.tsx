@@ -2,129 +2,261 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { GeneratedClip, GeneratedImage } from "../../lib/maker/types";
-import { DownloadIcon, Play, RefreshCw, Check } from "lucide-react";
-import { useMemo } from "react";
+import { GeneratedClip, GeneratedImage, Scene } from "../../lib/maker/types";
+import {
+  RefreshCw,
+  Check,
+  Image as ImageIcon,
+  Film,
+  Clock,
+} from "lucide-react";
 
 export default function ClipSection({
+  scenes,
   images,
   clips,
-  generatingIds,
+  aiType,
   onGenerateClip,
   onConfirmClip,
   onConfirmAll,
+  onQueueAction,
 }: {
-  images: GeneratedImage[];
-  clips: GeneratedClip[];
-  generatingIds: string[];
-  onGenerateClip: (imageId: string) => void;
+  scenes: Scene[];
+  images: Map<string, GeneratedImage>;
+  clips: Map<string, GeneratedClip>;
+  aiType: "kling" | "seedance";
+  onGenerateClip: (
+    sceneId: string,
+    aiType: "kling" | "seedance"
+  ) => Promise<void>;
   onConfirmClip: (clipId: string) => void;
   onConfirmAll: () => void;
+  onQueueAction: ({
+    sceneId,
+    aiType,
+  }: {
+    sceneId: string;
+    aiType: "kling" | "seedance";
+  }) => Promise<void>;
 }) {
-  const confirmedImages = useMemo(
-    () => images.filter((i) => i.confirmed),
-    [images]
-  );
+  const anyClipReady =
+    Array.from(clips.values()).filter((c) => !!c.dataUrl).length > 0;
+
+  const viewProcess = async (aiType: "kling" | "seedance") => {
+    const response = await fetch(`/api/${aiType}/clip-gen/id`, {
+      method: "GET",
+      cache: "no-store",
+    });
+
+    const data = await response.json();
+
+    console.log(data);
+  };
 
   return (
     <div
-      className={`p-4 border border-border rounded-lg ${
-        confirmedImages.length === 0 ? "opacity-50" : ""
-      }`}
+      className={[
+        "p-4 border border-border rounded-lg",
+        scenes.length === 0 ? "opacity-50" : "",
+      ].join(" ")}
     >
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="font-semibold">3. 클립 생성</h3>
-        {clips.length > 0 && (
-          <Button size="sm" variant="outline" onClick={onConfirmAll}>
-            전체 확정
-          </Button>
-        )}
-      </div>
-      <p className="text-sm text-muted-foreground mb-3">
-        이미지를 동영상 클립으로 변환합니다
-      </p>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <h3 className="font-semibold">3. 클립 생성</h3>
+          <div className="text-xs text-muted-foreground">
+            이미지를 동영상 클립으로 변환합니다
+          </div>
+        </div>
 
-      {confirmedImages.length > 0 ? (
-        <div className="space-y-3 max-h-160 overflow-y-auto">
-          {confirmedImages.map((image) => {
-            const imageClips = clips.filter(
-              (clip) => clip.imageId === image.id
-            );
-            const isGenerating = generatingIds.includes(image.id);
+        <div className="flex items-center gap-2">
+          <Button onClick={() => viewProcess(aiType)}>진행 상황 보기</Button>
+          {anyClipReady && (
+            <Button size="sm" variant="outline" onClick={onConfirmAll}>
+              전체 확정
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* List */}
+      {scenes.length > 0 ? (
+        <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+          {scenes.map((scene) => {
+            const baseImage = images.get(scene.id)?.dataUrl;
+            const clip = clips.get(scene.id);
+
+            const isGenerating = clip?.status === "pending";
+            const isQueueing = clip?.status === "queueing";
+            const videoSrc = clip?.dataUrl; // data:video/mp4;base64,... 혹은 URL
+
+            const statusChip =
+              clip?.status === "queueing"
+                ? "생성 중"
+                : clip?.status === "pending"
+                ? "요청 중"
+                : clip?.status === "failed"
+                ? "실패"
+                : clip?.confirmed
+                ? "확정됨"
+                : clip?.status === "succeeded"
+                ? "완료"
+                : "대기";
 
             return (
               <div
-                key={image.id}
-                className="p-3 border border-border rounded-lg bg-card"
+                key={scene.id}
+                className="relative flex gap-4 rounded-xl border bg-card p-3 mb-1 hover:shadow-sm transition-shadow"
               >
-                <div className="flex items-center gap-3 mb-2">
-                  <img
-                    src={image.url || "/placeholder.svg"}
-                    alt={image.prompt}
-                    className="w-12 h-12 object-cover rounded border"
-                  />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{image.prompt}</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onGenerateClip(image.id)}
-                    disabled={isGenerating}
-                  >
-                    {isGenerating ? (
-                      <RefreshCw className="w-3 h-3 animate-spin" />
-                    ) : (
-                      "클립 생성"
+                {/* 좌: 비디오 프레임 */}
+                <div className="shrink-0">
+                  <div className="relative overflow-hidden rounded-lg border bg-muted/20">
+                    <div className="h-[256px] w-[256px]">
+                      {videoSrc ? (
+                        <video
+                          id={`video-${scene.id}`}
+                          className="h-full w-full object-cover"
+                          src={videoSrc}
+                          controls
+                          poster={baseImage}
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                          <div className="flex flex-col items-center gap-2">
+                            <Film className="h-7 w-7" />
+                            <span className="text-xs">클립 없음 (미생성)</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 로딩/대기열 오버레이 */}
+                    {isGenerating && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                        {isGenerating ? (
+                          <RefreshCw className="h-6 w-6 animate-spin text-white" />
+                        ) : (
+                          <div className="flex flex-col items-center gap-2 text-white">
+                            <Clock className="h-6 w-6" />
+                            <span className="text-xs">대기열</span>
+                          </div>
+                        )}
+                      </div>
                     )}
-                  </Button>
+
+                    {/* status === queueing → 임의 버튼 */}
+                    {isQueueing && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            console.log(aiType);
+                            onQueueAction({
+                              sceneId: scene.id,
+                              aiType: aiType,
+                            });
+                            console.log(scene.id, aiType, clips.get(scene.id));
+                          }}
+                          className="h-7"
+                        >
+                          <Clock className="mr-2 h-3 w-3" />
+                          이미지 불러오기
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 좌측 하단: 액션들 */}
+                  <div className="mt-2 flex justify-center gap-2">
+                    <Button
+                      className="flex-1"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onGenerateClip(scene.id, aiType)}
+                      disabled={isGenerating || isQueueing}
+                    >
+                      {isGenerating ? (
+                        <>
+                          <RefreshCw className="mr-2 h-3 w-3 animate-spin" />
+                          생성 중…
+                        </>
+                      ) : isQueueing ? (
+                        "대기 중…"
+                      ) : (
+                        "클립 생성"
+                      )}
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant={clip?.confirmed ? "default" : "secondary"}
+                      className="h-8 w-8 p-0"
+                      disabled={!videoSrc}
+                      onClick={() => onConfirmClip(scene.id)}
+                      title="확정"
+                    >
+                      <Check className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
 
-                {imageClips.length > 0 && (
-                  <div className="space-y-2 mt-2">
-                    {imageClips.map((clip) => (
-                      <div
-                        key={clip.id}
-                        className="flex items-center gap-2 p-2 border border-border rounded bg-muted/50"
-                      >
+                {/* 우: 설명 패널 */}
+                <div className="min-w-0 flex-1">
+                  <div className="mb-2 flex items-start justify-between">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className="rounded-full border px-2.5 py-1">
+                        {statusChip}
+                      </span>
+                      <span>• {scene.id}</span>
+                    </div>
+                    {/* 작은 이미지 썸네일 */}
+                    <div className="ml-3">
+                      {baseImage ? (
                         <img
-                          src={clip.thumbnail || "/placeholder.svg"}
-                          alt="클립 썸네일"
-                          className="w-8 h-8 object-cover rounded"
+                          src={baseImage}
+                          alt="base"
+                          className="h-12 w-12 rounded border object-cover"
                         />
-                        <div className="flex-1">
-                          <p className="text-xs text-muted-foreground">
-                            {clip.duration}초 클립
-                          </p>
+                      ) : (
+                        <div className="h-12 w-12 rounded border flex items-center justify-center text-muted-foreground bg-muted/30">
+                          <ImageIcon className="h-4 w-4" />
                         </div>
-                        <div className="flex gap-1">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 w-6 p-0"
-                          >
-                            <Play className="w-3 h-3" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 w-6 p-0"
-                          >
-                            <DownloadIcon className="w-3 h-3" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant={clip.confirmed ? "default" : "secondary"}
-                            className="h-6 w-6 p-0"
-                            onClick={() => onConfirmClip(clip.id)}
-                          >
-                            <Check className="w-3 h-3" />
-                          </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <h4 className="text-sm font-semibold">원문</h4>
+                      <p className="mt-1 whitespace-pre-line text-sm">
+                        {scene.originalText}
+                      </p>
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-semibold">Clip Prompt</h4>
+                      <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">
+                        {scene.clipPrompt || "(클립 프롬프트 없음)"}
+                      </p>
+                    </div>
+
+                    <details className="group">
+                      <summary className="cursor-pointer text-xs text-muted-foreground underline decoration-dotted underline-offset-2">
+                        기타 정보 보기
+                      </summary>
+                      <div className="mt-2 grid grid-cols-1 gap-2 rounded-md border bg-muted/30 p-2 text-sm">
+                        <div className="text-muted-foreground">
+                          • koreanSummary: {scene.koreanSummary}
+                        </div>
+                        <div className="text-muted-foreground">
+                          • imagePrompt:{" "}
+                          {(scene as any).imagePrompt ?? scene.englishPrompt}
                         </div>
                       </div>
-                    ))}
+                    </details>
                   </div>
-                )}
+                </div>
               </div>
             );
           })}

@@ -2,15 +2,30 @@
 
 import { cn } from "@/lib/shared/utils";
 import { Separator } from "@/components/ui/separator";
-import { Video, ImageIcon, Scissors } from "lucide-react";
+import { Video, ImageIcon, Scissors, Upload } from "lucide-react";
 import SceneList from "@/components/maker/SceneList";
 import ImageSection from "@/components/maker/ImageSection";
 import ClipSection from "@/components/maker/ClipSection";
-import { Scene, GeneratedImage, GeneratedClip } from "@/lib/maker/types";
+import {
+  Scene,
+  GeneratedImage,
+  GeneratedClip,
+  UploadedImage,
+} from "@/lib/maker/types";
+import { useRef, useState } from "react";
+import { fileToBase64, notify } from "@/lib/maker/utils";
+import { Button } from "../ui/button";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "../ui/hover-card";
 
 type Props = {
   step: number;
   setStep: (s: number) => void;
+  aiType: "kling" | "seedance";
+  setAiType: React.Dispatch<React.SetStateAction<"kling" | "seedance">>;
 
   // scenes
   scenes: Scene[];
@@ -24,17 +39,30 @@ type Props = {
   updatePrompt: (id: string, v: string) => void;
 
   // images
-  images: GeneratedImage[];
-  generatingImages: string[];
-  onGenerateImage: (sceneId: string) => void;
+  images: Map<string, GeneratedImage>;
+  onGenerateImage: (sceneId: string) => Promise<void>;
+  onGenerateAllImages: () => void;
   onConfirmImage: (imgId: string) => void;
+  onConfirmAllImages: () => void;
+  isConfirmedAllImage: boolean;
+  uploadRefImage: React.Dispatch<React.SetStateAction<UploadedImage | null>>;
 
   // clips
-  clips: GeneratedClip[];
-  generatingClips: string[];
-  onGenerateClip: (imageId: string) => void;
+  clips: Map<string, GeneratedClip>;
+  onGenerateClip: (
+    sceneId: string,
+    aiType: "kling" | "seedance"
+  ) => Promise<void>;
+  onGenerateAllClips: () => void;
   onConfirmClip: (clipId: string) => void;
   onConfirmAllClips: () => void;
+  onQueueAction: ({
+    sceneId,
+    aiType,
+  }: {
+    sceneId: string;
+    aiType: "kling" | "seedance";
+  }) => Promise<void>;
 };
 
 const steps = [
@@ -46,6 +74,9 @@ const steps = [
 export default function VisualPipeline({
   step,
   setStep,
+  aiType,
+  setAiType,
+
   scenes,
   generatingScenes,
   onGenerateScenes,
@@ -54,16 +85,48 @@ export default function VisualPipeline({
   isConfirmedAllScenes,
 
   images,
-  generatingImages,
   onGenerateImage,
+  onGenerateAllImages,
   onConfirmImage,
+  onConfirmAllImages,
+  isConfirmedAllImage,
+  uploadRefImage,
 
   clips,
-  generatingClips,
   onGenerateClip,
+  onGenerateAllClips,
   onConfirmClip,
   onConfirmAllClips,
+  onQueueAction,
 }: Props) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [refFile, setRefFile] = useState<{
+    file: File | null;
+    url: string;
+  }>({ file: null, url: "" });
+
+  const processFile = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      notify("이미지 파일만 업로드 가능합니다.");
+      return;
+    }
+
+    try {
+      const convertedImage = await fileToBase64(file);
+      uploadRefImage(convertedImage);
+      setRefFile({ file, url: convertedImage.dataUrl });
+    } catch (err) {
+      notify("이미지 변환에 실패하였습니다.");
+    }
+  };
+
+  // 파일 선택 핸들러
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      processFile(e.target.files[0]);
+    }
+  };
+
   const CurrentIcon = steps[step].icon;
 
   return (
@@ -71,39 +134,79 @@ export default function VisualPipeline({
       {/* Sticky Stepper */}
       <div className="sticky top-18 z-20">
         <div className="backdrop-blur supports-[backdrop-filter]:bg-background/60 bg-background/90 border rounded-2xl px-3 py-2">
-          <div className="flex items-center gap-2">
-            {steps.map((s, idx) => {
-              const ActiveIcon = s.icon;
-              const active = s.key === step;
-              const done = s.key < step;
-              return (
-                <button
-                  key={s.key}
-                  onClick={() => setStep(s.key)}
-                  className={cn(
-                    "group relative flex items-center gap-2 rounded-xl px-3 py-2 transition-colors",
-                    active
-                      ? "bg-primary/10 text-primary"
-                      : done
-                      ? "text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <ActiveIcon
-                    className={cn("h-4 w-4", active && "text-primary")}
-                  />
-                  <div className="text-left">
-                    <div className="text-sm leading-tight">{s.label}</div>
-                    <div className="text-xs leading-tight text-muted-foreground">
-                      {s.sub}
+          <div className="flex justify-between">
+            <div className="flex items-center gap-2">
+              {steps.map((s, idx) => {
+                const ActiveIcon = s.icon;
+                const active = s.key === step;
+                const done = s.key < step;
+                return (
+                  <button
+                    key={s.key}
+                    onClick={() => setStep(s.key)}
+                    className={cn(
+                      "group relative flex items-center gap-2 rounded-xl px-3 py-2 transition-colors",
+                      active
+                        ? "bg-primary/10 text-primary"
+                        : done
+                        ? "text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <ActiveIcon
+                      className={cn("h-4 w-4", active && "text-primary")}
+                    />
+                    <div className="text-left">
+                      <div className="text-sm leading-tight">{s.label}</div>
+                      <div className="text-xs leading-tight text-muted-foreground">
+                        {s.sub}
+                      </div>
                     </div>
-                  </div>
-                  {idx < steps.length - 1 && (
-                    <div className="mx-3 h-5 w-px bg-border/80 hidden sm:block" />
+                    {idx < steps.length - 1 && (
+                      <div className="mx-3 h-5 w-px bg-border/80 hidden sm:block" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-4">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileInput}
+                className="hidden"
+              />
+              <HoverCard openDelay={120} closeDelay={80}>
+                <HoverCardTrigger asChild>
+                  <p className="max-w-[200px] truncate text-sm text-muted-foreground cursor-help underline decoration-dotted underline-offset-2">
+                    {refFile?.file?.name || "참조 이미지 없음"}
+                  </p>
+                </HoverCardTrigger>
+                <HoverCardContent className="w-auto p-2">
+                  {refFile.url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={refFile.url}
+                      alt="참조 이미지 미리보기"
+                      className="h-44 w-44 object-cover rounded-md border"
+                    />
+                  ) : (
+                    <div className="h-44 w-44 flex items-center justify-center text-xs text-muted-foreground">
+                      미리볼 이미지 없음
+                    </div>
                   )}
-                </button>
-              );
-            })}
+                </HoverCardContent>
+              </HoverCard>
+
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                variant="outline"
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                참조 이미지 선택
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -117,15 +220,38 @@ export default function VisualPipeline({
         </div>
 
         {/* Header inside canvas */}
-        <div className="relative flex items-center gap-2 p-4 md:p-6">
-          <div className="inline-flex items-center gap-2 rounded-full border bg-card/80 px-3 py-1.5 backdrop-blur">
-            <CurrentIcon className="h-4 w-4" />
-            <span className="text-sm font-medium">{steps[step].label}</span>
+        <div className="relative flex justify-between items-center p-4 md:p-6">
+          <div className="flex items-center gap-2">
+            <div className="inline-flex items-center gap-2 rounded-full border bg-card/80 px-3 py-1.5 backdrop-blur">
+              <CurrentIcon className="h-4 w-4" />
+              <span className="text-sm font-medium">{steps[step].label}</span>
+            </div>
+            <Separator
+              className="mx-2 hidden md:block"
+              orientation="vertical"
+            />
+            <p className="hidden md:block text-xs text-muted-foreground">
+              {steps[step].sub}
+            </p>
           </div>
-          <Separator className="mx-2 hidden md:block" orientation="vertical" />
-          <p className="hidden md:block text-xs text-muted-foreground">
-            {steps[step].sub}
-          </p>
+          <div className="inline-flex rounded-full border p-1 bg-card">
+            <Button
+              size="sm"
+              variant={aiType === "kling" ? "default" : "ghost"}
+              className="h-7 rounded-full"
+              onClick={() => setAiType("kling")}
+            >
+              Kling
+            </Button>
+            <Button
+              size="sm"
+              variant={aiType === "seedance" ? "default" : "ghost"}
+              className="h-7 rounded-full"
+              onClick={() => setAiType("seedance")}
+            >
+              Seedance
+            </Button>
+          </div>
         </div>
 
         {/* Content */}
@@ -137,6 +263,8 @@ export default function VisualPipeline({
                   scenes={scenes}
                   generating={generatingScenes}
                   onGenerate={onGenerateScenes}
+                  onGenerateImage={onGenerateImage}
+                  onGenerateAllImages={onGenerateAllImages}
                   onConfirm={onConfirmScene}
                   onConfirmAll={onConfirmAllScenes}
                   isConfirmedAllScenes={isConfirmedAllScenes}
@@ -149,9 +277,13 @@ export default function VisualPipeline({
                 <ImageSection
                   scenes={scenes}
                   images={images}
-                  generatingIds={generatingImages}
                   onGenerateImage={onGenerateImage}
+                  onGenerateAllClips={onGenerateAllClips}
                   onConfirmImage={onConfirmImage}
+                  onConfirmAllImages={onConfirmAllImages}
+                  isConfirmedAllImage={isConfirmedAllImage}
+                  uploadRefImage={uploadRefImage}
+                  selectable={true}
                 />
               </div>
             )}
@@ -159,12 +291,14 @@ export default function VisualPipeline({
             {step === 2 && (
               <div className="space-y-4">
                 <ClipSection
+                  scenes={scenes}
                   images={images}
                   clips={clips}
-                  generatingIds={generatingClips}
+                  aiType={aiType}
                   onGenerateClip={onGenerateClip}
                   onConfirmClip={onConfirmClip}
                   onConfirmAll={onConfirmAllClips}
+                  onQueueAction={onQueueAction}
                 />
               </div>
             )}

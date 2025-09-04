@@ -1,13 +1,15 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Check, Edit3, RefreshCw } from "lucide-react";
+import { Check, RefreshCw } from "lucide-react";
 import { Scene } from "../../lib/maker/types";
 
 export default function SceneList({
   scenes,
   generating,
   onGenerate,
+  onGenerateImage,
+  onGenerateAllImages,
   onConfirm,
   onConfirmAll,
   isConfirmedAllScenes,
@@ -15,6 +17,8 @@ export default function SceneList({
   scenes: Scene[];
   generating: boolean;
   onGenerate: () => void;
+  onGenerateImage: (sceneId: string) => Promise<void>;
+  onGenerateAllImages: () => void;
   onConfirm: (id: string) => void;
   onConfirmAll: () => void;
   isConfirmedAllScenes: boolean;
@@ -35,7 +39,9 @@ export default function SceneList({
                 전체 확정
               </Button>
             ) : (
-              <Button size="sm">맹글기</Button>
+              <Button size="sm" onClick={() => onGenerateAllImages()}>
+                사진 병렬 작업
+              </Button>
             ))}
           <Button
             size="sm"
@@ -92,9 +98,11 @@ export default function SceneList({
                     size="sm"
                     variant={scene.confirmed ? "default" : "outline"}
                     onClick={() => onConfirm(scene.id)}
-                    disabled={scene.confirmed}
                   >
                     <Check className="w-3 h-3" />
+                  </Button>
+                  <Button onClick={() => onGenerateImage(scene.id)}>
+                    이미지 생성
                   </Button>
                 </div>
               </div>
