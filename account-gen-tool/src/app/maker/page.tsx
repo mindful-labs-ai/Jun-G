@@ -588,10 +588,10 @@ export default function MakerPage() {
     aiType: "kling" | "seedance",
     queue?: boolean
   ) => {
-    const baseImage = imagesByScene.get(sceneId)?.dataUrl;
+    const baseImage = imagesByScene.get(sceneId)?.dataUrl ?? "";
 
     if (!queue) {
-      if (!baseImage) {
+      if (!baseImage || baseImage === "") {
         notify("클립이 될 이미지를 먼저 만들어주세요.");
         return;
       }
