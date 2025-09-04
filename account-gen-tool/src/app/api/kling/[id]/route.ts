@@ -1,6 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 
+export interface KlingImageToVideoStatusResponse {
+  code: number; // 0 = 성공
+  message: string; // "SUCCEED" 등
+  request_id: string;
+  data: KlingTaskData;
+}
+
+export type KlingTaskStatus =
+  | "pending"
+  | "processing"
+  | "running"
+  | "succeed"
+  | "failed"
+  | "canceled";
+
+export interface KlingTaskData {
+  task_id: string; // "791749406890147886"
+  task_status: KlingTaskStatus; // "succeed" 등
+  task_info: Record<string, unknown>; // 현재는 {}
+  task_result?: {
+    videos: KlingVideo[];
+    // 필요 시 다른 필드가 올 수 있으니 확장 가능
+    [k: string]: unknown;
+  };
+  task_status_msg?: string; // 실패 메시지 등
+  created_at: number; // epoch ms
+  updated_at: number; // epoch ms
+}
+
+export interface KlingVideo {
+  id: string; // "791749408236519505"
+  url: string; // 서명된 MP4 URL
+  duration: string | number; // "5.041" 또는 숫자일 수도 있음
+  thumbnail_url?: string;
+  fps?: number;
+  resolution?: string; // "720p" 등 제공될 수 있음
+}
+
 export async function GET(
   _request: NextRequest,
   ctx: { params: Promise<{ id: string }> }

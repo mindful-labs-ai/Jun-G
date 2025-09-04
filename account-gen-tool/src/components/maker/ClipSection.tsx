@@ -2,7 +2,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { GeneratedClip, GeneratedImage } from "./types";
+import { GeneratedClip, GeneratedImage } from "../../lib/maker/types";
 import { DownloadIcon, Play, RefreshCw, Check } from "lucide-react";
 import { useMemo } from "react";
 
@@ -45,7 +45,7 @@ export default function ClipSection({
       </p>
 
       {confirmedImages.length > 0 ? (
-        <div className="space-y-3 max-h-80 overflow-y-auto">
+        <div className="space-y-3 max-h-160 overflow-y-auto">
           {confirmedImages.map((image) => {
             const imageClips = clips.filter(
               (clip) => clip.imageId === image.id

@@ -5,7 +5,13 @@ export interface Scene {
   sceneExplain: string;
   koreanSummary: string;
   imagePrompt: string;
+  clipPrompt: string;
   confirmed: boolean;
+}
+
+export interface ScenesState {
+  byId: Map<string, Scene>;
+  order: string[];
 }
 
 export interface GeneratedImage {

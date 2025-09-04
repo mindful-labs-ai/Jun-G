@@ -1,20 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+  useDeferredValue,
+} from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { HelpCircle, Mic, RotateCcw, Video } from "lucide-react";
+import { HelpCircle, Mic, RefreshCw, RotateCcw } from "lucide-react";
 import HeaderBar from "@/components/maker/HeaderBar";
-import SceneList from "@/components/maker/SceneList";
-import ImageSection from "@/components/maker/ImageSection";
-import ClipSection from "@/components/maker/ClipSection";
 import NarrationPanel from "@/components/maker/NarrationPanel";
 import ResetDialog from "@/components/maker/ResetDialog";
 import ScriptEditDialog from "@/components/maker/ScriptEditDialog";
-
-import { nowId } from "@/components/maker/utils";
+import SceneRail from "@/components/maker/SceneRail";
+import SceneCanvas from "@/components/maker/SceneCanvas";
+import { nowId } from "@/lib/maker/utils";
 import {
   GeneratedClip,
   GeneratedImage,
@@ -22,20 +25,31 @@ import {
   NarrationSettings,
   ResetType,
   Scene,
-} from "@/components/maker/types";
+} from "@/lib/maker/types";
+import VisualPipeline from "@/components/maker/VisualPipeLine";
+
+/** Map + order 상태 타입 */
+type ScenesState = {
+  byId: Map<string, Scene>;
+  order: string[]; // 화면 표시에 사용할 순서의 정답
+};
 
 export default function MakerPage() {
   const router = useRouter();
 
   // core state
   const [script, setScript] = useState("");
-  const [scenes, setScenes] = useState<Scene[]>([]);
+  const [scenesState, setScenesState] = useState<ScenesState>({
+    byId: new Map(),
+    order: [],
+  });
   const [images, setImages] = useState<GeneratedImage[]>([]);
   const [clips, setClips] = useState<GeneratedClip[]>([]);
   const [narration, setNarration] = useState<GeneratedNarration | null>(null);
+  const [currentSceneId, setCurrentSceneId] = useState<string | null>(null);
 
   // UI/flow state
-  const [editingScene, setEditingScene] = useState<number | null>(null);
+  const [editingScene, setEditingScene] = useState<string | null>(null);
   const [editingScriptOpen, setEditingScriptOpen] = useState(false);
   const [tempScript, setTempScript] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -50,47 +64,53 @@ export default function MakerPage() {
 
   // funnel state
   const [step, setStep] = useState<number>(0);
-  const stepTitle = (step: number) => {
-    switch (step) {
-      case 0:
-        return "장면 스텝";
-      case 1:
-        return "이미지 스텝";
-      case 2:
-        return "클립 스텝";
-      default:
-        return "X";
-    }
-  };
+  const stepTitle = (s: number) =>
+    s === 0
+      ? "장면 스텝"
+      : s === 1
+      ? "이미지 스텝"
+      : s === 2
+      ? "클립 스텝"
+      : "X";
 
   // audio sim
+  const [audioOpen, setAudioOpen] = useState(false);
   const [narrationSettings, setNarrationSettings] = useState<NarrationSettings>(
-    {
-      tempo: 50,
-      tone: "neutral",
-      voice: "female",
-      style: "professional",
-    }
+    { tempo: 50, tone: "neutral", voice: "female", style: "professional" }
   );
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const playTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const HANDLE_W = 40;
+
+  // ---- 파생 배열(하위 컴포넌트들은 배열로 유지) ----
+  const scenes = useMemo(
+    () =>
+      scenesState.order.map((id) => scenesState.byId.get(id)!).filter(Boolean),
+    [scenesState]
+  );
+
+  const deferredScenes = useDeferredValue(scenes);
 
   // derived project status
   const status = useMemo(() => {
-    const scenesConfirmed = scenes.filter((s) => s.confirmed).length;
+    const scenesConfirmed = [...scenesState.byId.values()].filter(
+      (s) => s.confirmed
+    ).length;
     const imagesConfirmed = images.filter((i) => i.confirmed).length;
     const clipsConfirmed = clips.filter((c) => c.confirmed).length;
     return {
       scenes: scenesConfirmed,
-      totalScenes: scenes.length,
+      totalScenes: scenesState.byId.size,
       images: imagesConfirmed,
       totalImages: images.length,
       clips: clipsConfirmed,
       totalClips: clips.length,
       narrationDone: narration?.confirmed || false,
     };
-  }, [scenes, images, clips, narration]);
+  }, [scenesState, images, clips, narration]);
+
+  const allConfirmed = status.scenes === scenes.length;
 
   const zipReady = useMemo(
     () =>
@@ -105,7 +125,7 @@ export default function MakerPage() {
     const savedScript = localStorage.getItem("ai-shortform-script");
     if (!savedScript) {
       alert("스크립트가 없습니다");
-      router.push("/");
+      router.replace("/");
       return;
     }
     setScript(savedScript);
@@ -189,11 +209,14 @@ ${fileList.map((f) => `- ${f}`).join("\n")}
   };
   const saveScriptChange = () => {
     const hasDownstream =
-      scenes.length > 0 || images.length > 0 || clips.length > 0 || !!narration;
+      scenesState.byId.size > 0 ||
+      images.length > 0 ||
+      clips.length > 0 ||
+      !!narration;
     const apply = () => {
       setScript(tempScript);
       localStorage.setItem("ai-shortform-script", tempScript);
-      setScenes([]);
+      setScenesState({ byId: new Map(), order: [] });
       setImages([]);
       setClips([]);
       setNarration(null);
@@ -204,42 +227,90 @@ ${fileList.map((f) => `- ${f}`).join("\n")}
     else apply();
   };
 
+  /* ============ Scenes helpers ============ */
+  const applyScenes = (list: Scene[]) => {
+    const byId = new Map<string, Scene>();
+    const order: string[] = [];
+    for (const s of list) {
+      byId.set(s.id, s);
+      order.push(s.id);
+    }
+    setScenesState({ byId, order });
+    setCurrentSceneId(order[0] ?? null);
+  };
+
+  const confirmScene = (sceneId: string) =>
+    setScenesState((prev) => {
+      const s = prev.byId.get(sceneId);
+      if (!s) return prev;
+      const byId = new Map(prev.byId);
+      byId.set(sceneId, { ...s, confirmed: !s.confirmed });
+      return { ...prev, byId };
+    });
+
+  const confirmAllScenes = () =>
+    setScenesState((prev) => {
+      if (prev.byId.size === 0) return prev;
+      const byId = new Map(prev.byId);
+      for (const [id, s] of byId.entries()) {
+        byId.set(id, { ...s, confirmed: true });
+      }
+      return { ...prev, byId };
+    });
+
+  // 프롬프트 편집 반영 (현재 씬)
+  const updateCurrentScenePrompt = (id: string, v: string) => {
+    if (!id) return;
+    setScenesState((prev) => {
+      const s = prev.byId.get(id);
+      if (!s) return prev;
+      const byId = new Map(prev.byId);
+      byId.set(id, { ...s, imagePrompt: v });
+      return { ...prev, byId };
+    });
+  };
+
+  // 현재 씬
+  const currentScene = useMemo(
+    () =>
+      currentSceneId ? scenesState.byId.get(currentSceneId) ?? null : null,
+    [scenesState, currentSceneId]
+  );
+
   /* ============ Visual: Scenes / Images / Clips ============ */
   const handleGenerateScenes = async () => {
     if (!script.trim()) return notify("먼저 스크립트를 입력해주세요.");
     if (
-      confirm(
+      !confirm(
         "기존 장면 프롬프트는 초기화 됩니다. \n스크립트를 장면으로 분해 하시겠습니까?"
       )
-    ) {
-      try {
-        setGeneratingScenes(true);
-        const res = await fetch("/api/scenes", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ script }),
-        });
+    )
+      return;
 
-        if (!res.ok) {
-          const { error } = await res.json();
-          throw new Error(error ?? "생성 실패");
-        }
-        const scenes: Scene[] = await res.json();
-
-        console.log(scenes);
-
-        setScenes(scenes);
-        notify(`${scenes.length}개의 장면이 생성되었습니다.`);
-      } catch (error) {
-        notify(`${error}`);
-      } finally {
-        setGeneratingScenes(false);
+    try {
+      setGeneratingScenes(true);
+      const res = await fetch("/api/scenes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ script }),
+      });
+      if (!res.ok) {
+        const { error } = await res.json();
+        throw new Error(error ?? "생성 실패");
       }
+      const list: Scene[] = await res.json();
+      applyScenes(list);
+      console.log(list);
+      notify(`${list.length}개의 장면이 생성되었습니다.`);
+    } catch (error) {
+      notify(String(error));
+    } finally {
+      setGeneratingScenes(false);
     }
   };
 
   const generateImageForScene = async (sceneId: string) => {
-    const scene = scenes.find((s) => s.id === sceneId);
+    const scene = scenesState.byId.get(sceneId);
     if (!scene) return;
     setGeneratingImages((prev) => [...prev, sceneId]);
     await new Promise((r) => setTimeout(r, 1000 + Math.random() * 1500)); // stub
@@ -279,16 +350,6 @@ ${fileList.map((f) => `- ${f}`).join("\n")}
     generateImageForScene(sceneId);
   };
 
-  const confirmScene = (sceneId: string) => {
-    setScenes((prev) =>
-      prev.map((s) => (s.id === sceneId ? { ...s, confirmed: true } : s))
-    );
-    notify("장면이 확정되었습니다.");
-  };
-  const confirmAllScenes = () => {
-    setScenes((prev) => prev.map((s) => ({ ...s, confirmed: true })));
-    notify("모든 장면이 확정되었습니다.");
-  };
   const confirmImage = (imageId: string) => {
     setImages((prev) =>
       prev.map((i) => (i.id === imageId ? { ...i, confirmed: true } : i))
@@ -320,6 +381,7 @@ ${fileList.map((f) => `- ${f}`).join("\n")}
     );
     notify("클립이 확정되었습니다.");
   };
+
   const confirmAllClips = () => {
     const cnt = clips.filter((c) => !c.confirmed).length;
     if (cnt === 0) return notify("모든 클립이 이미 확정되었습니다.");
@@ -392,10 +454,11 @@ ${fileList.map((f) => `- ${f}`).join("\n")}
   /* ============ Global actions ============ */
   const resetAll = () => {
     if (confirm("초기화 하시겠습니까?")) {
-      setScenes([]);
+      setScenesState({ byId: new Map(), order: [] });
       setImages([]);
       setClips([]);
       setNarration(null);
+      setCurrentSceneId(null);
       setCurrentTime(0);
       setIsPlaying(false);
       notify("모든 진행 상황이 초기화되었습니다.");
@@ -404,11 +467,20 @@ ${fileList.map((f) => `- ${f}`).join("\n")}
 
   const openHelp = () => notify("AI 영상을 한 플랫폼에서 시작해보세요.");
 
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!script && scenesState.byId.size === 0) return;
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [script, scenesState.byId.size]);
+
   /* ============ render ============ */
   return (
     <div className="min-h-screen bg-background">
       <HeaderBar
-        onBack={() => router.push("/")}
+        onBack={() => router.replace("/")}
         onEditScript={handleEditScript}
         status={status}
         onZip={handleZipDownload}
@@ -416,81 +488,149 @@ ${fileList.map((f) => `- ${f}`).join("\n")}
       />
 
       <main className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 md:grid-cols-1 gap-6 min-h-[calc(100vh-200px)]">
-          {/* Visual */}
-          <div className="space-y-6">
-            <Card className="rounded-2xl">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Video className="w-5 h-5" />
-                  시각 파이프라인
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {step === 0 && (
-                    <SceneList
-                      scenes={scenes}
-                      generating={generatingScenes}
-                      onGenerate={handleGenerateScenes}
-                      onConfirm={confirmScene}
-                      onEdit={(id) => setEditingScene(id)}
-                      editing={editingScene}
-                      onConfirmAll={confirmAllScenes}
-                    />
-                  )}
-                  {step === 1 && (
-                    <ImageSection
-                      scenes={scenes}
-                      images={images}
-                      generatingIds={generatingImages}
-                      onGenerateImage={handleGenerateImage}
-                      onConfirmImage={confirmImage}
-                    />
-                  )}
-                  {step === 2 && (
-                    <ClipSection
-                      images={images}
-                      clips={clips}
-                      generatingIds={generatingClips}
-                      onGenerateClip={generateClip}
-                      onConfirmClip={confirmClip}
-                      onConfirmAll={confirmAllClips}
-                    />
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+        <div className="grid grid-cols-1 gap-6 mb-2">
+          <VisualPipeline
+            step={step}
+            setStep={setStep}
+            // scenes
+            scenes={deferredScenes}
+            generatingScenes={generatingScenes}
+            onGenerateScenes={handleGenerateScenes}
+            onConfirmScene={confirmScene}
+            onConfirmAllScenes={confirmAllScenes}
+            isConfirmedAllScenes={allConfirmed}
+            onEditScene={(id) => {
+              setEditingScene(id);
+              setCurrentSceneId(id);
+            }}
+            editingScene={editingScene}
+            updatePrompt={updateCurrentScenePrompt}
+            // images
+            images={images}
+            generatingImages={generatingImages}
+            onGenerateImage={handleGenerateImage}
+            onConfirmImage={confirmImage}
+            // clips
+            clips={clips}
+            generatingClips={generatingClips}
+            onGenerateClip={generateClip}
+            onConfirmClip={confirmClip}
+            onConfirmAllClips={confirmAllClips}
+          />
+        </div>
 
-          {/* Audio */}
-          <div className="space-y-6">
-            <Card className="rounded-2xl">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Mic className="w-5 h-5" />
-                  청각 파이프라인
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <NarrationPanel
-                  scriptPresent={!!script}
-                  narration={narration}
-                  settings={narrationSettings}
-                  setSettings={(s) => setNarrationSettings(s)}
-                  generating={generatingNarration}
-                  isPlaying={isPlaying}
-                  currentTime={currentTime}
-                  onGenerate={handleGenerateNarration}
-                  onPlayPause={togglePlay}
-                  onDownload={downloadNarration}
-                  onConfirm={confirmNarration}
-                />
-              </CardContent>
-            </Card>
-          </div>
+        <div className="space-y-6">
+          <SceneRail
+            scenes={deferredScenes}
+            images={images}
+            clips={clips}
+            currentSceneId={currentSceneId}
+            onSelect={setCurrentSceneId}
+          />
+          <SceneCanvas
+            step={step as 0 | 1 | 2}
+            scene={currentScene}
+            images={images}
+            clips={clips}
+            isGeneratingImage={
+              currentSceneId ? generatingImages.includes(currentSceneId) : false
+            }
+            isGeneratingClipIds={generatingClips}
+            onUpdatePrompt={updateCurrentScenePrompt}
+            onConfirmScene={confirmScene}
+            onGenerateImage={handleGenerateImage}
+            onConfirmImage={confirmImage}
+            onGenerateClip={generateClip}
+            onConfirmClip={confirmClip}
+          />
+
+          {step === 0 && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={handleGenerateScenes}
+                disabled={generatingScenes}
+              >
+                {generatingScenes ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> 장면
+                    생성 중
+                  </>
+                ) : (
+                  "장면 쪼개기"
+                )}
+              </Button>
+              <Button variant="outline" onClick={confirmAllScenes}>
+                모든 장면 확정
+              </Button>
+            </div>
+          )}
         </div>
       </main>
+
+      <div
+        className={[
+          "fixed right-0 top-0 z-50 h-full",
+          "w-[420px] sm:w-[480px]",
+          "border-l border-border bg-card shadow-xl",
+          "transition-transform duration-300 ease-in-out",
+          audioOpen
+            ? "translate-x-0"
+            : "translate-x-[calc(100%-var(--handle))]",
+        ].join(" ")}
+        style={{ ["--handle" as any]: `${HANDLE_W}px` }}
+      >
+        <div className="relative h-full">
+          {/* 패널 손잡이 */}
+          <button
+            type="button"
+            onClick={() => setAudioOpen((o) => !o)}
+            aria-label={
+              audioOpen ? "청각 파이프라인 닫기" : "청각 파이프라인 열기"
+            }
+            aria-expanded={audioOpen}
+            className={[
+              "group absolute top-1/2 -translate-y-1/2",
+              "-left-[var(--handle)]",
+              "h-28 w-[var(--handle)]",
+              "rounded-l-md rounded-r-none",
+              "bg-primary text-primary-foreground",
+              "shadow-lg hover:brightness-110 active:scale-[0.98]",
+              "flex items-center justify-center",
+              "transition-all duration-200",
+            ].join(" ")}
+          >
+            <div className="flex flex-col items-center gap-2">
+              <Mic className="h-5 w-5" />
+              <span className="text-[10px] tracking-widest rotate-180 [writing-mode:vertical-rl]">
+                AUDIO
+              </span>
+            </div>
+          </button>
+
+          {/* 패널 본문 */}
+          <div className="h-full flex flex-col">
+            <div className="px-4 py-5 border-b border-border">
+              <h3 className="text-lg font-semibold">나레이션</h3>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <NarrationPanel
+                scriptPresent={!!script}
+                narration={narration}
+                settings={narrationSettings}
+                setSettings={(s) => setNarrationSettings(s)}
+                generating={generatingNarration}
+                isPlaying={isPlaying}
+                currentTime={currentTime}
+                onGenerate={handleGenerateNarration}
+                onPlayPause={togglePlay}
+                onDownload={downloadNarration}
+                onConfirm={confirmNarration}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Footer */}
       <footer className="border-t border-border sticky bottom-0 z-10 bg-card mt-auto">
@@ -520,6 +660,7 @@ ${fileList.map((f) => `- ${f}`).join("\n")}
             <div className="text-sm text-muted-foreground">
               {script ? `스크립트: ${script.length}자` : "스크립트 없음"}
             </div>
+
             <div className="flex w-42 justify-end items-center gap-2 select-none">
               <Button
                 className="w-full rounded-tl-full rounded-bl-full rounded-tr-none rounded-br-none"

@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import ImageSceneCard from "./ImageSceneCard";
-import { GeneratedImage, Scene } from "./types";
+import { GeneratedImage, Scene } from "../../lib/maker/types";
 
 export default function ImageSection({
   scenes,
@@ -10,12 +10,19 @@ export default function ImageSection({
   generatingIds,
   onGenerateImage,
   onConfirmImage,
+  selectable,
+  selectedSceneIds,
+  onToggleSelectScene,
 }: {
   scenes: Scene[];
   images: GeneratedImage[];
   generatingIds: string[];
   onGenerateImage: (sceneId: string) => void;
   onConfirmImage: (imgId: string) => void;
+
+  selectable?: boolean;
+  selectedSceneIds?: Set<string>;
+  onToggleSelectScene?: (sceneId: string) => void;
 }) {
   return (
     <div
@@ -23,12 +30,38 @@ export default function ImageSection({
         scenes.length === 0 ? "opacity-50" : ""
       }`}
     >
-      <h3 className="font-semibold mb-2">2. 이미지 생성</h3>
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="font-semibold">2. 이미지 생성</h3>
+
+        {/* 선택 모드일 때 멀티 버튼 */}
+        {selectable && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              선택됨 {selectedSceneIds?.size ?? 0}개
+            </span>
+            <Button
+              size="sm"
+              variant="default"
+              disabled={!selectedSceneIds || selectedSceneIds.size === 0}
+              onClick={() => {
+                // 부모에서 병렬 실행 핸들러를 내려받아서 써도 되고,
+                // 여기선 `CustomEvent`로 부모에 알리는 패턴 대신
+                // 간단히 부모에서 onGenerateSelected를 prop으로 내려도 OK
+                const event = new CustomEvent("image:generateSelected");
+                window.dispatchEvent(event);
+              }}
+            >
+              선택 씬 병렬 생성
+            </Button>
+          </div>
+        )}
+      </div>
+
       <p className="text-sm text-muted-foreground mb-3">
         각 장면에 맞는 이미지를 생성합니다
       </p>
       {scenes.length > 0 ? (
-        <div className="space-y-3 max-h-80 overflow-y-auto">
+        <div className="space-y-3 max-h-160 overflow-y-auto">
           {scenes.map((scene) => (
             <ImageSceneCard
               key={scene.id}
@@ -41,6 +74,9 @@ export default function ImageSection({
               isGenerating={generatingIds.includes(scene.id)}
               onGenerateImage={onGenerateImage}
               onConfirmImage={onConfirmImage}
+              selectable={selectable}
+              selectedSceneIds={selectedSceneIds}
+              onToggleSelectScene={onToggleSelectScene}
             />
           ))}
         </div>

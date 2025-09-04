@@ -4,7 +4,7 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Check, RefreshCw } from "lucide-react";
-import { GeneratedImage } from "./types";
+import { GeneratedImage } from "../../lib/maker/types";
 
 export default function ImageSceneCard({
   scene,
@@ -12,12 +12,18 @@ export default function ImageSceneCard({
   isGenerating,
   onGenerateImage,
   onConfirmImage,
+  selectable,
+  selectedSceneIds,
+  onToggleSelectScene,
 }: {
   scene: { id: string; koreanSummary: string; englishPrompt: string };
   images: GeneratedImage[];
   isGenerating: boolean;
   onGenerateImage: (sceneId: string) => void;
   onConfirmImage: (imgId: string) => void;
+  selectable?: boolean;
+  selectedSceneIds?: Set<string>;
+  onToggleSelectScene?: (sceneId: string) => void;
 }) {
   const sceneImages = images.filter((i) => i.sceneId === scene.id);
   const recent = sceneImages.slice(-2);
@@ -25,7 +31,17 @@ export default function ImageSceneCard({
   return (
     <Card className="p-3 border border-border rounded-lg bg-card">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-sm font-medium">{scene.koreanSummary}</p>
+        <div className="flex items-center gap-2">
+          {selectable && (
+            <input
+              type="checkbox"
+              className="h-4 w-4 cursor-pointer"
+              checked={!!selectedSceneIds?.has(scene.id)}
+              onChange={() => onToggleSelectScene?.(scene.id)}
+            />
+          )}
+          <p className="text-sm font-medium">{scene.koreanSummary}</p>
+        </div>
         <Button
           size="sm"
           variant="outline"

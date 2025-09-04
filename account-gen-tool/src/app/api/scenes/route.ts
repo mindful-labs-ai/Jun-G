@@ -1,4 +1,4 @@
-import { scenePrompt } from "@/lib/prompt";
+import { scenePrompt } from "@/lib/maker/prompt";
 import { NextRequest } from "next/server";
 import OpenAI from "openai";
 

@@ -4,6 +4,12 @@ import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Upload, Loader2, X, FileImage, Sparkles } from "lucide-react";
+import { KlingImageToVideoStatusResponse } from "@/app/api/kling/[id]/route";
+import { KlingImageToVideoResponse } from "@/app/api/kling/route";
+import {
+  SeeDanceImageToVideoResponse,
+  TaskResponse,
+} from "@/app/api/seedance/route";
 
 interface UploadedImage {
   name: string;
@@ -12,62 +18,18 @@ interface UploadedImage {
   mimeType: string;
 }
 
-interface KlingImageToVideoResponse {
-  code: number;
-  message: string;
-  request_id: string;
-  data: {
-    task_id: string;
-    task_status: string;
-    task_info: Record<string, any>;
-    created_at: number;
-    updated_at: number;
-  };
+interface CalledVideoInfo {
+  aiType: string;
+  id: string;
+  url: string;
 }
 
-export interface KlingImageToVideoStatusResponse {
-  code: number; // 0 = 성공
-  message: string; // "SUCCEED" 등
-  request_id: string;
-  data: KlingTaskData;
-}
-
-export type KlingTaskStatus =
-  | "pending"
-  | "processing"
-  | "running"
-  | "succeed"
-  | "failed"
-  | "canceled";
-
-export interface KlingTaskData {
-  task_id: string; // "791749406890147886"
-  task_status: KlingTaskStatus; // "succeed" 등
-  task_info: Record<string, unknown>; // 현재는 {}
-  task_result?: {
-    videos: KlingVideo[];
-    // 필요 시 다른 필드가 올 수 있으니 확장 가능
-    [k: string]: unknown;
-  };
-  task_status_msg?: string; // 실패 메시지 등
-  created_at: number; // epoch ms
-  updated_at: number; // epoch ms
-}
-
-export interface KlingVideo {
-  id: string; // "791749408236519505"
-  url: string; // 서명된 MP4 URL
-  duration: string | number; // "5.041" 또는 숫자일 수도 있음
-  thumbnail_url?: string;
-  fps?: number;
-  resolution?: string; // "720p" 등 제공될 수 있음
-}
-
-export function KlingVideoWithUpload() {
+export function GenerateVideoWithUpload() {
   const [uploadedImage, setUploadedImage] = useState<UploadedImage | null>(
     null
   );
-  const [generatedClips, setGeneratedClips] = useState<KlingVideo[]>([]);
+  const [aiType, setAiType] = useState<"SEE_DANCE" | "KLING" | null>(null);
+  const [generatedClips, setGeneratedClips] = useState<CalledVideoInfo[]>([]);
   const [clipId, setClipId] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
@@ -145,7 +107,16 @@ export function KlingVideoWithUpload() {
     }
   };
 
-  // Kling API 호출
+  const handleGenerateVideo = () => {
+    if (aiType === "SEE_DANCE") {
+      generateWithSeedance();
+    }
+
+    if (aiType === "KLING") {
+      generateWithKling();
+    }
+  };
+
   const generateWithKling = async () => {
     if (!uploadedImage || !prompt.trim()) {
       setError("이미지와 프롬프트를 모두 입력해주세요.");
@@ -195,6 +166,81 @@ export function KlingVideoWithUpload() {
     }
   };
 
+  const generateWithSeedance = async () => {
+    if (!uploadedImage || !prompt.trim()) {
+      setError("이미지와 프롬프트를 모두 입력해주세요.");
+      return;
+    }
+
+    setIsGenerating(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/seedance", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "seedance-1-0-pro-250528",
+          content: [
+            {
+              type: "text",
+              text: prompt,
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: uploadedImage?.dataUrl,
+              },
+            },
+          ],
+        }),
+      });
+
+      console.log({
+        model: "seedance-1-0-pro-250528",
+        content: [
+          {
+            type: "text",
+            text: prompt,
+          },
+          {
+            type: "image_url",
+            image_url: {
+              url: uploadedImage?.dataUrl,
+            },
+          },
+        ],
+      });
+
+      if (!response.ok) {
+        console.log("에러남");
+        throw new Error("이미지 생성 실패");
+      }
+
+      const data = (await response.json()) as SeeDanceImageToVideoResponse;
+
+      console.log(data);
+
+      setClipId(data.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "알 수 없는 오류");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleGetVideo = (id: string) => {
+    if (aiType === "KLING") {
+      getWithKling(id);
+    }
+
+    if (aiType === "SEE_DANCE") {
+      getWithSeedance(id);
+    }
+  };
+
   const getWithKling = async (id: string) => {
     {
       const response = await fetch(`/api/kling/${id}`, {
@@ -209,11 +255,53 @@ export function KlingVideoWithUpload() {
       const jsonData =
         (await response.json()) as KlingImageToVideoStatusResponse;
 
-      const videos = jsonData.data?.task_result?.videos ?? [];
-      if (videos.length === 0 || jsonData.message !== "SUCCEED") return;
+      const videoUrl = jsonData.data.task_result?.videos[0].url;
+
+      if (videoUrl === undefined || jsonData.message !== "SUCCEED") {
+        return;
+      }
 
       setGeneratedClips((prev) => {
-        const next = [...prev, ...videos];
+        const next = [
+          ...prev,
+          {
+            aiType: "KLING",
+            id: jsonData.data.task_id,
+            url: videoUrl,
+          },
+        ];
+        console.log(next);
+        console.log(jsonData);
+        return next;
+      });
+    }
+  };
+
+  const getWithSeedance = async (id: string) => {
+    {
+      const response = await fetch(`/api/seedance/${id}`, {
+        method: "GET",
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error(`Status ${response.status}`);
+      }
+
+      const jsonData = (await response.json()) as TaskResponse;
+
+      const videoUrl = jsonData.content.video_url ?? [];
+      if (videoUrl === undefined || jsonData.status !== "succeeded") return;
+
+      setGeneratedClips((prev) => {
+        const next = [
+          ...prev,
+          {
+            aiType: "KLING",
+            id: jsonData.id,
+            url: videoUrl,
+          },
+        ];
         console.log(next);
         console.log(jsonData);
         return next;
@@ -320,7 +408,7 @@ export function KlingVideoWithUpload() {
         </div>
 
         <div className="flex justify-center gap-6 items-center">
-          <div className="w-fit flex flex-col text-center">
+          {/* <div className="w-fit flex flex-col text-center">
             <p>영상 역동성 : {cfgValue}</p>
             <input
               type="range"
@@ -330,9 +418,9 @@ export function KlingVideoWithUpload() {
               step={0.1}
               max={1}
             />
-          </div>
+          </div> */}
           <div>
-            <p>영상 길이</p>
+            {/* <p>영상 길이</p>
             <div className="flex gap-2">
               <input
                 type="radio"
@@ -354,6 +442,29 @@ export function KlingVideoWithUpload() {
                 name="duration"
               />
               <label htmlFor="duration-10">10s</label>
+            </div> */}
+            <p>생성 AI 종류</p>
+            <div className="flex gap-2">
+              <input
+                type="radio"
+                value="KLING"
+                id="aiType-KLING"
+                checked={aiType === "KLING"}
+                onChange={() => setAiType("KLING")}
+                name="aiType"
+              />
+              <label htmlFor="aiType-KLING">Kling 사용하기</label>
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="radio"
+                value="SEE_DANCE"
+                id="aiType-SEE_DANCE"
+                checked={aiType === "SEE_DANCE"}
+                onChange={() => setAiType("SEE_DANCE")}
+                name="aiType"
+              />
+              <label htmlFor="aiType-SEE_DANCE">SeeDance 사용하기</label>
             </div>
           </div>
         </div>
@@ -392,7 +503,7 @@ export function KlingVideoWithUpload() {
           )}
         </div>
         <Button
-          onClick={generateWithKling}
+          onClick={handleGenerateVideo}
           disabled={!uploadedImage || !prompt.trim() || isGenerating}
           className="w-full"
         >
@@ -404,13 +515,11 @@ export function KlingVideoWithUpload() {
           ) : (
             <>
               <Sparkles className="mr-2 h-4 w-4" />
-              Kling 생성
+              {aiType} 생성
             </>
           )}
         </Button>
-        <Button onClick={() => getWithKling("791793773151535158")}>
-          영상 읽어오기
-        </Button>
+        <Button onClick={() => handleGetVideo(clipId!)}>영상 읽어오기</Button>
       </div>
       {generatedClips.length !== 0 && (
         <div className="grid grid-cols-3 gap-4">
@@ -423,13 +532,12 @@ export function KlingVideoWithUpload() {
                   preload="metadata"
                   playsInline
                 ></video>
-                <span>{clip.duration}초 영상</span>
               </div>
             );
           })}
         </div>
       )}
-      <Button onClick={() => getUrlId()}>임시버튼</Button>
+      <Button onClick={() => handleGenerateVideo()}>임시버튼</Button>
     </div>
   );
 }

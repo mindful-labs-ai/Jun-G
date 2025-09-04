@@ -58,7 +58,7 @@ export default function ScriptInputPage() {
     // Save to localStorage and navigate
     localStorage.setItem("ai-shortform-script", script);
     alert("스크립트 저장됨, 메이커 페이지로 이동합니다.");
-    router.push("/maker");
+    router.replace("/maker");
   };
 
   return (

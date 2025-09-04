@@ -96,7 +96,6 @@ async function resizeImageToSquare(
   base64: string,
   size: number
 ): Promise<string> {
-  // sharp 라이브러리를 사용한 리사이즈 (설치 필요: npm install sharp)
   const sharp = require("sharp");
 
   try {

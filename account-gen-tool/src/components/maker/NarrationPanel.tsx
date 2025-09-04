@@ -17,8 +17,8 @@ import {
   Volume2,
   Check,
 } from "lucide-react";
-import { GeneratedNarration, NarrationSettings } from "./types";
-import { formatTime } from "./utils";
+import { GeneratedNarration, NarrationSettings } from "../../lib/maker/types";
+import { formatTime } from "../../lib/maker/utils";
 
 export default function NarrationPanel({
   scriptPresent,
