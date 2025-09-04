@@ -1,4 +1,3 @@
-// app/api/gemini/generate-with-image/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
@@ -99,21 +98,23 @@ async function resizeImageToSquare(
   base64: string,
   size: number
 ): Promise<string> {
-  const sharp = require("sharp");
+  // ESM 동적 import (require 사용 금지)
+  const { default: sharp } = await import("sharp");
 
   try {
-    const buffer = Buffer.from(base64, "base64");
+    // data URL도 허용: 'data:image/png;base64,....' → 순수 base64만 추출
+    const comma = base64.indexOf(",");
+    const pureBase64 = comma >= 0 ? base64.slice(comma + 1) : base64;
+
+    const buffer = Buffer.from(pureBase64, "base64");
     const resizedBuffer = await sharp(buffer)
-      .resize(size, size, {
-        fit: "cover",
-        position: "center",
-      })
+      .resize(size, size, { fit: "cover", position: "center" })
       .png()
       .toBuffer();
 
-    return resizedBuffer.toString("base64");
+    return resizedBuffer.toString("base64"); // 필요 시 앞에 data URL 프리픽스 붙여 사용
   } catch (error) {
     console.error("Image resize error:", error);
-    return base64; // 리사이즈 실패 시 원본 반환
+    return base64; // 실패 시 원본 반환
   }
 }
