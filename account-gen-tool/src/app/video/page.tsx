@@ -4,7 +4,8 @@ import React from "react";
 const KlingPage = () => {
   return (
     <>
-      <GenerateVideoWithUpload />
+      <p>hello</p>
+      {/* <GenerateVideoWithUpload /> */}
     </>
   );
 };

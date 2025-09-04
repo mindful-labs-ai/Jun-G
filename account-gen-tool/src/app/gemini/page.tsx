@@ -4,7 +4,8 @@ import React from "react";
 const GeminiPage = () => {
   return (
     <>
-      <GeminiImageWithUpload />
+      <p>hello</p>
+      {/* <GeminiImageWithUpload /> */}
     </>
   );
 };
