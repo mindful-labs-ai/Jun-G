@@ -40,7 +40,7 @@ export default memo(function SceneRail({
           const active = s.id === currentSceneId;
 
           return (
-            <HoverCard key={s.id} openDelay={300}>
+            <HoverCard key={s.id} openDelay={240}>
               <HoverCardTrigger asChild>
                 <Button
                   variant={active ? "default" : "secondary"}

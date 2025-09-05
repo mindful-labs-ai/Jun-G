@@ -87,7 +87,7 @@ export default function ClipSection({
 
       {/* List */}
       {scenes.length > 0 ? (
-        <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+        <div className="space-y-2 max-h-[70vh] overflow-y-auto pr-1">
           {scenes.map((scene) => {
             const baseImage = images.get(scene.id)?.dataUrl;
             const clip = clips.get(scene.id);
@@ -112,7 +112,7 @@ export default function ClipSection({
             return (
               <div
                 key={scene.id}
-                className="relative flex gap-4 rounded-lg border bg-card p-3 mb-1 hover:shadow-sm transition-shadow"
+                className="relative flex gap-4 rounded-lg border bg-card p-3 hover:shadow-sm transition-shadow"
               >
                 {/* 좌: 비디오 프레임 */}
                 <div className="shrink-0">
@@ -245,29 +245,38 @@ export default function ClipSection({
                   <div className="space-y-3">
                     <div>
                       <h4 className="text-sm font-semibold">원문</h4>
-                      <p className="mt-1 whitespace-pre-line text-sm">
+                      <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">
                         {scene.originalText}
                       </p>
                     </div>
 
                     <div>
-                      <h4 className="text-sm font-semibold">Clip Prompt</h4>
+                      <h4 className="text-sm font-semibold">클립 프롬프트</h4>
                       <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">
-                        {scene.clipPrompt || "(클립 프롬프트 없음)"}
+                        {scene.clipPrompt}
                       </p>
                     </div>
 
                     <details className="group">
                       <summary className="cursor-pointer text-xs text-muted-foreground underline decoration-dotted underline-offset-2">
-                        기타 정보 보기
+                        요약/장면 프롬프트 보기
                       </summary>
-                      <div className="mt-2 grid grid-cols-1 gap-2 rounded-md border bg-muted/30 p-2 text-sm">
-                        <div className="text-muted-foreground">
-                          • koreanSummary: {scene.koreanSummary}
+                      <div className="mt-2 space-y-2 rounded-md border bg-muted/30 p-2">
+                        <div>
+                          <div className="text-[11px] font-medium text-muted-foreground">
+                            요약
+                          </div>
+                          <p className="whitespace-pre-line text-sm">
+                            {scene.sceneExplain}
+                          </p>
                         </div>
-                        <div className="text-muted-foreground">
-                          • imagePrompt:{" "}
-                          {(scene as any).imagePrompt ?? scene.englishPrompt}
+                        <div>
+                          <div className="text-[11px] font-medium text-muted-foreground">
+                            장면 프롬프트(Scene Prompt)
+                          </div>
+                          <p className="whitespace-pre-line text-sm">
+                            {scene.englishPrompt}
+                          </p>
                         </div>
                       </div>
                     </details>

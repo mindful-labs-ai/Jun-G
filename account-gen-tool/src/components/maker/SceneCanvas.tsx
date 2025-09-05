@@ -59,7 +59,7 @@ export default function SceneCanvas({
   return (
     <div className="grid lg:grid-cols-2 gap-6">
       {/* 좌: 텍스트/프롬프트 */}
-      <Card className="h-full">
+      <Card className="h-full py-0">
         <CardContent className="p-6 space-y-4">
           <div>
             <div className="text-xs text-muted-foreground mb-1">
@@ -75,7 +75,7 @@ export default function SceneCanvas({
               {step === 2 ? "ClipPrompt" : "ImagePrompt"}
             </div>
             <TextareaAutoSize
-              className="min-h-[220px] w-full disabled:text-black disabled:cursor-not-allowed resize-none rounded-lg p-2 break-keep"
+              className="min-h-[220px] w-full disabled:text-black disabled:cursor-not-allowed resize-none rounded-lg break-keep"
               value={step === 2 ? scene.clipPrompt : scene.imagePrompt}
               onChange={(e) => {
                 step === 2
@@ -119,7 +119,7 @@ export default function SceneCanvas({
       </Card>
 
       {/* 우: 결과 보드(이미지/클립) */}
-      <Card className="h-full">
+      <Card className="h-full py-0">
         <div className="flex justify-center items-center h-full p-6 space-y-4">
           {step === 1 && (
             <>

@@ -47,11 +47,11 @@ export default function ImageSection({
           {Array.from(images.values()).filter((img) => img.dataUrl).length ===
             scenes.length &&
             (!isConfirmedAllImage ? (
-              <Button size="sm" variant="outline" onClick={onConfirmAllImages}>
+              <Button variant="outline" onClick={onConfirmAllImages}>
                 전체 확정
               </Button>
             ) : (
-              <Button size="sm" onClick={() => onGenerateAllClips()}>
+              <Button onClick={() => onGenerateAllClips()}>
                 클립 병렬 작업
               </Button>
             ))}
@@ -59,7 +59,7 @@ export default function ImageSection({
       </div>
 
       {scenes.length > 0 ? (
-        <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+        <div className="space-y-2 max-h-[70vh] overflow-y-auto pr-1">
           {scenes.map((scene) => {
             const image = images.get(scene.id);
             const clipPrompt = scene.clipPrompt as string | undefined;
@@ -191,15 +191,15 @@ export default function ImageSection({
                             요약
                           </div>
                           <p className="whitespace-pre-line text-sm">
-                            {scene.koreanSummary}
+                            {scene.sceneExplain}
                           </p>
                         </div>
                         <div>
                           <div className="text-[11px] font-medium text-muted-foreground">
-                            클립 프롬프트(Clip Prompt)
+                            장면 프롬프트(Scene Prompt)
                           </div>
                           <p className="whitespace-pre-line text-sm">
-                            {scene.clipPrompt}
+                            {scene.englishPrompt}
                           </p>
                         </div>
                       </div>

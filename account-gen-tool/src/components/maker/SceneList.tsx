@@ -26,8 +26,8 @@ export default function SceneList({
   return (
     <div className="p-4 border border-border rounded-lg">
       <div className="flex items-center justify-between mb-2">
-        <div>
-          <h3 className="font-semibold mb-2">1. 장면 프롬프트</h3>
+        <div className="flex flex-col gap-3">
+          <h3 className="font-semibold">1. 장면 프롬프트</h3>
           <p className="text-sm text-muted-foreground mb-3">
             스크립트를 장면에 따라 나눕니다.
           </p>
@@ -35,18 +35,17 @@ export default function SceneList({
         <div className="space-x-2">
           {scenes.length > 0 &&
             (!isConfirmedAllScenes ? (
-              <Button size="sm" variant="outline" onClick={onConfirmAll}>
+              <Button variant="outline" onClick={onConfirmAll}>
                 전체 확정
               </Button>
             ) : (
-              <Button size="sm" onClick={() => onGenerateAllImages()}>
+              <Button onClick={() => onGenerateAllImages()}>
                 사진 병렬 작업
               </Button>
             ))}
           <Button
-            size="sm"
             variant="outline"
-            className="bg-transparent mb-4"
+            className="bg-transparent"
             onClick={onGenerate}
             disabled={generating}
           >
@@ -63,7 +62,7 @@ export default function SceneList({
       </div>
 
       {scenes.length > 0 ? (
-        <div className="space-y-3 max-h-[calc(100dvh-498px)] overflow-y-auto">
+        <div className="space-y-2 max-h-[calc(100dvh-498px)] overflow-y-auto">
           {scenes.map((scene) => (
             <div
               key={scene.id}

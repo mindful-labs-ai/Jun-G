@@ -535,7 +535,7 @@ export default function MakerPage() {
           imageMimeType: uploadedImage?.mimeType,
         };
 
-        const res = await fetch(`/api/image-gen/${sceneId}`, {
+        const res = await fetch(`/api/image-gen/gemini/${sceneId}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1194,6 +1194,8 @@ export default function MakerPage() {
         onZip={handleZipDownload}
       />
 
+      <Button onClick={() => console.log(uploadedImage)}>테스트</Button>
+
       <main className="container mx-auto px-4 py-6">
         <div className="grid grid-cols-1 gap-6 mb-2">
           <VisualPipeline
@@ -1288,7 +1290,7 @@ export default function MakerPage() {
           "transition-transform duration-300 ease-in-out",
           audioOpen
             ? "translate-x-0"
-            : "translate-x-[calc(100%-var(--handle))]",
+            : "translate-x-[calc(100%+40px-var(--handle))]",
         ].join(" ")}
         style={{ ["--handle" as any]: `${HANDLE_W}px` }}
       >
@@ -1323,7 +1325,7 @@ export default function MakerPage() {
           {/* 패널 본문 */}
           <div className="h-full flex flex-col">
             <div className="px-4 py-5 border-b border-border">
-              <h3 className="text-lg font-semibold">나레이션</h3>
+              <h3 className="text-lg font-semibold">AUDIO PANEL</h3>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
               <NarrationPanel
