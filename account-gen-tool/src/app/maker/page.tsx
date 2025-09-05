@@ -932,22 +932,28 @@ export default function MakerPage() {
           throw new Error("API Error!");
         }
 
-        const videoUrl = json.content.video_url ?? [];
-        if (videoUrl === undefined || json.status !== "succeeded") return;
+        if (json.status === "succeeded") {
+          const videoUrl = json.content?.video_url ?? [];
 
-        setClipsByScene((prev) => {
-          const next = new Map(prev);
-          next.set(sceneId, {
-            status: "succeeded",
-            taskUrl: clipId,
-            sceneId,
-            dataUrl: videoUrl,
-            timestamp: Date.now(),
-            confirmed: false,
+          if (videoUrl === undefined) {
+            throw new Error("클립 생성 실패");
+          }
+
+          setClipsByScene((prev) => {
+            const next = new Map(prev);
+            next.set(sceneId, {
+              status: "succeeded",
+              taskUrl: clipId,
+              sceneId,
+              dataUrl: videoUrl,
+              timestamp: Date.now(),
+              confirmed: false,
+            });
+            console.log(next);
+            return next;
           });
-          console.log(next);
-          return next;
-        });
+        }
+        notify("이미지 생성 중 입니다.");
       } catch (error) {
         setClipsByScene((prev) => {
           const next = new Map(prev);
