@@ -495,6 +495,8 @@ export default function MakerPage() {
       }
     }
 
+    notify("장면에 대한 이미지를 생성합니다.");
+
     // 1) pending placeholder 삽입
     const placeholder: GeneratedImage = {
       status: "pending",
