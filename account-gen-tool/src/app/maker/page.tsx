@@ -37,6 +37,8 @@ import {
 import { KlingImageToVideoResponse } from "../api/kling/clip-gen/[id]/route";
 import { KlingImageToVideoStatusResponse } from "../api/kling/[id]/route";
 
+type ClipJob = { sceneId: string; aiType: "kling" | "seedance" };
+
 export default function MakerPage() {
   const router = useRouter();
 
@@ -93,6 +95,17 @@ export default function MakerPage() {
   const [currentTime, setCurrentTime] = useState(0);
   const playTimerRef = useRef<NodeJS.Timeout | null>(null);
   const HANDLE_W = 40;
+
+  // queue state
+  const imageQueueRef = useRef<string[]>([]);
+  const imageQueuedSetRef = useRef<Set<string>>(new Set());
+  const imageQueueTimerRef = useRef<ReturnType<typeof setInterval> | null>(
+    null
+  );
+
+  const clipQueueRef = useRef<ClipJob[]>([]);
+  const clipQueuedSetRef = useRef<Set<string>>(new Set()); // sceneId 중복 방지
+  const clipQueueTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ---- 파생 배열(하위 컴포넌트들은 배열로 유지) ----
   const scenes = useMemo(
@@ -553,21 +566,65 @@ export default function MakerPage() {
     }
   };
 
-  const generateAllImages = () => {
-    if (scenes.length <= 0) {
-      notify("장면을 먼저 만들어주세요.");
-      return;
-    }
+  const startImageQueue = useCallback(
+    (intervalMs = 500) => {
+      if (imageQueueTimerRef.current) return; // 이미 동작 중이면 무시
+
+      imageQueueTimerRef.current = setInterval(() => {
+        const nextId = imageQueueRef.current.shift();
+
+        // 큐가 비면 종료
+        if (!nextId) {
+          clearInterval(imageQueueTimerRef.current!);
+          imageQueueTimerRef.current = null;
+          imageQueuedSetRef.current.clear();
+          return;
+        }
+
+        // 응답 대기 없이 발사
+        void handleGenerateImage(nextId, /* fromBatch */ true);
+      }, intervalMs);
+    },
+    [handleGenerateImage]
+  );
+
+  const enqueueImageId = useCallback(
+    (sceneId: string) => {
+      // 진행 중이거나 이미 성공한 씬은 스킵
+      const img = imagesByScene.get(sceneId);
+      if (img && (img.status === "pending" || img.status === "succeeded"))
+        return;
+
+      // 중복 enque 방지
+      if (imageQueuedSetRef.current.has(sceneId)) return;
+
+      imageQueuedSetRef.current.add(sceneId);
+      imageQueueRef.current.push(sceneId);
+    },
+    [imagesByScene]
+  );
+
+  const generateAllImages = useCallback(() => {
     if (!uploadedImage) {
-      notify("참조 이미지를 선택해주세요.");
+      notify("참조 이미지를 먼저 선택해주세요.");
       return;
     }
-    if (confirm("모든 장면에 대한 이미지를 만듭니다.")) {
-      scenesState.order.forEach((id) => {
-        void handleGenerateImage(id, true);
-      });
+    if (
+      !confirm("모든 장면에 대한 이미지를 큐에 넣어 0.5초 간격으로 요청합니다.")
+    ) {
+      return;
     }
-  };
+
+    // 순서대로 큐 적재
+    for (const id of scenesState.order) {
+      enqueueImageId(id);
+    }
+
+    // 드레인 시작 (응답은 기다리지 않음)
+    startImageQueue(500);
+
+    notify(`${imageQueueRef.current.length}건이 큐에 추가되었습니다.`);
+  }, [uploadedImage, scenesState.order, enqueueImageId, startImageQueue]);
 
   const confirmImage = (sceneId: string) => {
     setImagesByScene((prev) => {
@@ -578,6 +635,15 @@ export default function MakerPage() {
       return next;
     });
   };
+
+  useEffect(() => {
+    return () => {
+      if (imageQueueTimerRef.current) {
+        clearInterval(imageQueueTimerRef.current);
+        imageQueueTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const confirmAllImages = () => {
     setImagesByScene((prev) => {
@@ -737,6 +803,49 @@ export default function MakerPage() {
     }
   };
 
+  const enqueueClipJob = useCallback(
+    (job: ClipJob) => {
+      // 이미 진행/대기/완료인 씬은 스킵
+      const c = clipsByScene.get(job.sceneId);
+      if (
+        c &&
+        (c.status === "pending" ||
+          c.status === "queueing" ||
+          c.status === "succeeded")
+      ) {
+        return;
+      }
+      // 같은 sceneId 중복 enqueue 방지
+      if (clipQueuedSetRef.current.has(job.sceneId)) return;
+
+      clipQueuedSetRef.current.add(job.sceneId);
+      clipQueueRef.current.push(job);
+    },
+    [clipsByScene]
+  );
+
+  const startClipQueue = useCallback(
+    (intervalMs = 500) => {
+      if (clipQueueTimerRef.current) return; // 이미 동작 중이면 무시
+
+      clipQueueTimerRef.current = setInterval(() => {
+        const next = clipQueueRef.current.shift();
+
+        // 큐가 비면 정지 + 리셋
+        if (!next) {
+          clearInterval(clipQueueTimerRef.current!);
+          clipQueueTimerRef.current = null;
+          clipQueuedSetRef.current.clear();
+          return;
+        }
+
+        // 응답 기다리지 않고 발사
+        void generateClip(next.sceneId, next.aiType, /* queue */ true);
+      }, intervalMs);
+    },
+    [generateClip]
+  );
+
   const getClip = async ({
     sceneId,
     aiType,
@@ -855,18 +964,48 @@ export default function MakerPage() {
   };
 
   const generateAllClips = () => {
+    // 1) 선행 조건 검사
     if (imagesByScene.size < scenes.length) {
-      return notify("이미지를 먼저 만들어주세요.");
-    }
-    if (!confirm("이전 클립은 삭제됩니다. 진행하시겠습니까?")) {
+      notify("이미지를 먼저 만들어주세요.");
       return;
     }
-    if (confirm("모든 이미지를 클립으로 만듭니다.")) {
-      scenesState.order.forEach((id) => {
-        void generateClip(id, aiType, true);
-      });
+    if (!confirm("이전 클립은 삭제됩니다. 진행하시겠습니까?")) return;
+    if (
+      !confirm(
+        "모든 이미지를 클립으로 만듭니다. 큐에 넣고 0.5초 간격으로 요청합니다."
+      )
+    )
+      return;
+
+    // 2) 씬 순서대로 큐 적재 (이미지 없는 씬은 스킵)
+    let enqueued = 0;
+    for (const sceneId of scenesState.order) {
+      const base = imagesByScene.get(sceneId)?.dataUrl;
+      if (!base) continue; // 안전장치: base image 없는 씬은 제외
+      enqueueClipJob({ sceneId, aiType });
+      enqueued++;
     }
+
+    if (enqueued === 0) {
+      notify(
+        "큐에 넣을 항목이 없습니다. (이미지 없음 또는 클립이 이미 진행/완료 상태)"
+      );
+      return;
+    }
+
+    // 3) 드레인 시작 (응답 대기 없이 발사)
+    startClipQueue(500);
+    notify(`${enqueued}개가 큐에 추가되었습니다.`);
   };
+
+  useEffect(() => {
+    return () => {
+      if (clipQueueTimerRef.current) {
+        clearInterval(clipQueueTimerRef.current);
+        clipQueueTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const confirmClip = (sceneId: string) => {
     setClipsByScene((prev) => {

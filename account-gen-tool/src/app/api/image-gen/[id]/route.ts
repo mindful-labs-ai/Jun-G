@@ -1,8 +1,7 @@
-// app/api/gemini/generate-with-image/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-export const runtime = "nodejs"; // Edge로 바꿔도 되지만 nodejs 그대로 사용해도 OK
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
@@ -67,9 +66,8 @@ export async function POST(request: NextRequest) {
     // 리사이즈 완전 제거: 그대로 반환
     return NextResponse.json({
       success: !!generatedImageBase64,
-      generatedImage: generatedImageBase64, // base64 (data: prefix 없이)
+      generatedImage: generatedImageBase64,
       textResponse,
-      // imageSize 표시만 힌트 용도. 원본 그대로일 수 있음
       imageSize: "original",
       timestamp: new Date().toISOString(),
     });
