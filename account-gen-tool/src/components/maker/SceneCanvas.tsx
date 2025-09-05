@@ -91,7 +91,7 @@ export default function SceneCanvas({
                 onClick={() => onConfirmScene?.(scene.id)}
               >
                 <Check className="w-4 h-4 mr-1" />
-                {scene.confirmed ? "확정됨" : "장면 확정"}
+                {scene.confirmed ? "수정하기" : "확정하기"}
               </Button>
               {step === 1 && (
                 <Button
@@ -144,7 +144,7 @@ export default function SceneCanvas({
                       onClick={() => onConfirmImage?.(sceneImages?.sceneId)}
                     >
                       <Check className="w-3 h-3 mr-1" />
-                      {sceneImages?.confirmed ? "확정됨" : "확정"}
+                      {sceneImages?.confirmed ? "수정하기" : "확정하기"}
                     </Button>
                     {/* {sceneImages?.confirmed && (
                       <Button
@@ -192,7 +192,7 @@ export default function SceneCanvas({
                     onClick={() => onConfirmClip?.(scene.id)}
                   >
                     <Check className="w-3 h-3 mr-1" />
-                    {sceneClips?.confirmed ? "확정됨" : "확정"}
+                    {sceneClips?.confirmed ? "수정하기" : "확정하기"}
                   </Button>
                 </div>
               )}

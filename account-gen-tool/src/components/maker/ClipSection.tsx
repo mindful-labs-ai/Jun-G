@@ -10,6 +10,9 @@ import {
   Film,
   Clock,
 } from "lucide-react";
+import { useState } from "react";
+
+type RatioValue = "16:9" | "4:3" | "1:1" | "3:4" | "9:16" | "21:9";
 
 export default function ClipSection({
   scenes,
@@ -20,6 +23,7 @@ export default function ClipSection({
   onConfirmClip,
   onConfirmAll,
   onQueueAction,
+  setIdleSceneClip,
 }: {
   scenes: Scene[];
   images: Map<string, GeneratedImage>;
@@ -38,7 +42,9 @@ export default function ClipSection({
     sceneId: string;
     aiType: "kling" | "seedance";
   }) => Promise<void>;
+  setIdleSceneClip: (sceneId: string) => void;
 }) {
+  const [ratio, setRatio] = useState<string>("1:1");
   const anyClipReady =
     Array.from(clips.values()).filter((c) => !!c.dataUrl).length > 0;
 
@@ -61,10 +67,10 @@ export default function ClipSection({
       ].join(" ")}
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex flex-col gap-3">
           <h3 className="font-semibold">3. 클립 생성</h3>
-          <div className="text-xs text-muted-foreground">
+          <div className="text-sm text-muted-foreground mb-3">
             이미지를 동영상 클립으로 변환합니다
           </div>
         </div>
@@ -106,7 +112,7 @@ export default function ClipSection({
             return (
               <div
                 key={scene.id}
-                className="relative flex gap-4 rounded-xl border bg-card p-3 mb-1 hover:shadow-sm transition-shadow"
+                className="relative flex gap-4 rounded-lg border bg-card p-3 mb-1 hover:shadow-sm transition-shadow"
               >
                 {/* 좌: 비디오 프레임 */}
                 <div className="shrink-0">
@@ -161,7 +167,7 @@ export default function ClipSection({
                           className="h-7"
                         >
                           <Clock className="mr-2 h-3 w-3" />
-                          이미지 불러오기
+                          클립 불러오기
                         </Button>
                       </div>
                     )}
@@ -208,10 +214,20 @@ export default function ClipSection({
                       <span className="rounded-full border px-2.5 py-1">
                         {statusChip}
                       </span>
-                      <span>• {scene.id}</span>
+                      <span>
+                        • {scene.id}
+                        <Button
+                          className="text-xs text-muted-foreground"
+                          size="sm"
+                          variant="link"
+                          onClick={() => setIdleSceneClip(scene.id)}
+                        >
+                          클립 초기화
+                        </Button>
+                      </span>
                     </div>
                     {/* 작은 이미지 썸네일 */}
-                    <div className="ml-3">
+                    <div className="right-3 absolute">
                       {baseImage ? (
                         <img
                           src={baseImage}

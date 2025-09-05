@@ -34,7 +34,7 @@ export default function HeaderBar({
   zipDownloading: boolean;
 }) {
   return (
-    <header className="border-b border-border bg-card sticky top-0 z-10">
+    <header className="border-b border-border bg-card top-0 z-10">
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           {/* Left */}
@@ -99,7 +99,7 @@ export default function HeaderBar({
             onClick={onZip}
             disabled={zipDownloading}
             className="gap-2"
-            variant={zipDownloading ? "default" : "secondary"}
+            variant={zipDownloading ? "secondary" : "default"}
           >
             <FileArchive className="w-4 h-4" />
             {zipDownloading ? "압축 중..." : "ZIP 다운로드"}

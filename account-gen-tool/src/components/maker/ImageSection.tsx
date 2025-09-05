@@ -13,6 +13,7 @@ type Props = {
   onConfirmAllImages: () => void;
   isConfirmedAllImage: boolean;
   uploadRefImage: React.Dispatch<React.SetStateAction<UploadedImage | null>>;
+  setIdleSceneImage: (sceneId: string) => void;
 
   // 선택 모드(선택 가능하면 체크박스가 뜸)
   selectable?: boolean;
@@ -27,6 +28,7 @@ export default function ImageSection({
   isConfirmedAllImage,
   onGenerateImage,
   onGenerateAllClips,
+  setIdleSceneImage,
 }: Props) {
   return (
     <div
@@ -35,8 +37,8 @@ export default function ImageSection({
       }`}
     >
       <div className="flex justify-between mb-2">
-        <div className="flex flex-col">
-          <h3 className="font-semibold mb-2">2. 이미지 생성</h3>
+        <div className="flex flex-col gap-3">
+          <h3 className="font-semibold">2. 이미지 생성</h3>
           <p className="text-sm text-muted-foreground mb-3">
             각 장면에 맞는 이미지를 생성합니다
           </p>
@@ -61,7 +63,17 @@ export default function ImageSection({
           {scenes.map((scene) => {
             const image = images.get(scene.id);
             const clipPrompt = scene.clipPrompt as string | undefined;
-            const explain = scene.koreanSummary || "";
+
+            const statusChip =
+              image?.status === "pending"
+                ? "생성 중"
+                : image?.status === "failed"
+                ? "실패"
+                : image?.confirmed
+                ? "확정됨"
+                : image?.status === "succeeded"
+                ? "완료"
+                : "대기";
 
             return (
               <div
@@ -113,7 +125,7 @@ export default function ImageSection({
                           생성 중…
                         </>
                       ) : (
-                        "클립 생성"
+                        "이미지 생성"
                       )}
                     </Button>
                     <Button
@@ -131,8 +143,21 @@ export default function ImageSection({
                 {/* 우: 설명 패널 */}
                 <div className="min-w-0 flex-1">
                   <div className="mb-2 flex items-center justify-between">
-                    <div className="text-xs text-muted-foreground">
-                      • {scene.id}
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className="rounded-full border px-2.5 py-1">
+                        {statusChip}
+                      </span>
+                      <span>
+                        • {scene.id}
+                        <Button
+                          className="text-xs text-muted-foreground"
+                          size="sm"
+                          variant="link"
+                          onClick={() => setIdleSceneImage(scene.id)}
+                        >
+                          클립 초기화
+                        </Button>
+                      </span>
                     </div>
                     {image && (
                       <span className="text-xs rounded-full border px-2 py-0.5 text-muted-foreground">
@@ -143,38 +168,38 @@ export default function ImageSection({
 
                   <div className="space-y-3">
                     <div>
-                      <h4 className="text-sm font-semibold">Context</h4>
+                      <h4 className="text-sm font-semibold">원문</h4>
                       <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">
-                        {explain}
+                        {scene.originalText}
                       </p>
                     </div>
 
                     <div>
-                      <h4 className="text-sm font-semibold">Clip Prompt</h4>
+                      <h4 className="text-sm font-semibold">이미지 프롬프트</h4>
                       <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">
-                        {clipPrompt || scene.englishPrompt}
+                        {scene.imagePrompt}
                       </p>
                     </div>
 
                     <details className="group">
                       <summary className="cursor-pointer text-xs text-muted-foreground underline decoration-dotted underline-offset-2">
-                        원문/이미지 프롬프트 보기
+                        요약/클립 프롬프트 보기
                       </summary>
                       <div className="mt-2 space-y-2 rounded-md border bg-muted/30 p-2">
                         <div>
                           <div className="text-[11px] font-medium text-muted-foreground">
-                            원문
+                            요약
                           </div>
                           <p className="whitespace-pre-line text-sm">
-                            {scene.originalText}
+                            {scene.koreanSummary}
                           </p>
                         </div>
                         <div>
                           <div className="text-[11px] font-medium text-muted-foreground">
-                            이미지 프롬프트(imagePrompt)
+                            클립 프롬프트(Clip Prompt)
                           </div>
                           <p className="whitespace-pre-line text-sm">
-                            {(scene as any).imagePrompt ?? scene.englishPrompt}
+                            {scene.clipPrompt}
                           </p>
                         </div>
                       </div>

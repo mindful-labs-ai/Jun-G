@@ -46,6 +46,7 @@ type Props = {
   onConfirmAllImages: () => void;
   isConfirmedAllImage: boolean;
   uploadRefImage: React.Dispatch<React.SetStateAction<UploadedImage | null>>;
+  setIdleSceneImage: (sceneId: string) => void;
 
   // clips
   clips: Map<string, GeneratedClip>;
@@ -63,6 +64,7 @@ type Props = {
     sceneId: string;
     aiType: "kling" | "seedance";
   }) => Promise<void>;
+  setIdleSceneClip: (sceneId: string) => void;
 };
 
 const steps = [
@@ -91,6 +93,7 @@ export default function VisualPipeline({
   onConfirmAllImages,
   isConfirmedAllImage,
   uploadRefImage,
+  setIdleSceneImage,
 
   clips,
   onGenerateClip,
@@ -98,6 +101,7 @@ export default function VisualPipeline({
   onConfirmClip,
   onConfirmAllClips,
   onQueueAction,
+  setIdleSceneClip,
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [refFile, setRefFile] = useState<{
@@ -117,6 +121,7 @@ export default function VisualPipeline({
       setRefFile({ file, url: convertedImage.dataUrl });
     } catch (err) {
       notify("이미지 변환에 실패하였습니다.");
+      console.error(err);
     }
   };
 
@@ -132,7 +137,7 @@ export default function VisualPipeline({
   return (
     <section className="relative w-full mx-auto">
       {/* Sticky Stepper */}
-      <div className="sticky top-18 z-20">
+      <div className="sticky top-2 z-20">
         <div className="backdrop-blur supports-[backdrop-filter]:bg-background/60 bg-background/90 border rounded-2xl px-3 py-2">
           <div className="flex justify-between">
             <div className="flex items-center gap-2">
@@ -284,6 +289,7 @@ export default function VisualPipeline({
                   isConfirmedAllImage={isConfirmedAllImage}
                   uploadRefImage={uploadRefImage}
                   selectable={true}
+                  setIdleSceneImage={setIdleSceneImage}
                 />
               </div>
             )}
@@ -299,6 +305,7 @@ export default function VisualPipeline({
                   onConfirmClip={onConfirmClip}
                   onConfirmAll={onConfirmAllClips}
                   onQueueAction={onQueueAction}
+                  setIdleSceneClip={setIdleSceneClip}
                 />
               </div>
             )}

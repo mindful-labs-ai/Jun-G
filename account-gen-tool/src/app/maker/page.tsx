@@ -48,7 +48,6 @@ export default function MakerPage() {
     byId: new Map(),
     order: [],
   });
-
   const [imagesByScene, setImagesByScene] = useState<
     Map<string, GeneratedImage>
   >(new Map());
@@ -487,86 +486,105 @@ export default function MakerPage() {
     }
   };
 
-  const handleGenerateImage = async (sceneId: string, queue?: boolean) => {
-    if (!queue) {
-      if (!uploadedImage) {
-        notify("참조 이미지를 선택해주세요.");
-        return;
-      }
-
-      notify("장면에 대한 이미지를 생성합니다.");
-    }
-
-    // 1) pending placeholder 삽입
-    const placeholder: GeneratedImage = {
-      status: "pending",
-      sceneId,
-      timestamp: Date.now(),
-      confirmed: false,
-    };
-    setImagesByScene((prev) => {
-      const next = new Map(prev);
-      next.set(sceneId, placeholder);
-      return next;
-    });
-
-    try {
-      const prompt = scenesState.byId.get(sceneId)?.imagePrompt;
-
-      const body = {
-        prompt,
-        imageBase64: uploadedImage?.base64,
-        imageMimeType: uploadedImage?.mimeType,
+  const idleSceneImage = (sceneId: string) => {
+    if (confirm("정말 초기화 하시겠습니까?")) {
+      const placeIdle: GeneratedImage = {
+        status: "idle",
+        sceneId,
+        timestamp: Date.now(),
+        confirmed: false,
       };
-
-      const res = await fetch(`/api/image-gen/${sceneId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt,
-          imageBase64: uploadedImage?.base64,
-          imageMimeType: uploadedImage?.mimeType,
-        }),
-      });
-
-      console.log(body);
-
-      if (!res.ok) throw new Error("이미지 생성 실패");
-
-      const json = await res.json();
-
-      console.log(json);
-
-      if (json.success) {
-        setImagesByScene((prev) => {
-          const next = new Map(prev);
-          next.set(sceneId, {
-            status: "succeeded",
-            sceneId,
-            dataUrl: `data:image/png;base64,${json.generatedImage}`,
-            timestamp: Date.now(),
-            confirmed: false,
-          });
-          console.log(next);
-          return next;
-        });
-      } else {
-        throw new Error("Failed to create Image, Please change Prompt.");
-      }
-    } catch (e) {
       setImagesByScene((prev) => {
         const next = new Map(prev);
-        next.set(sceneId, {
-          status: "failed",
-          sceneId,
-          timestamp: Date.now(),
-          confirmed: false,
-          error: `생성 실패 : ${e}`,
-        });
+        next.set(sceneId, placeIdle);
         return next;
       });
     }
   };
+
+  const handleGenerateImage = useCallback(
+    async (sceneId: string, queue?: boolean) => {
+      if (!queue) {
+        if (!uploadedImage) {
+          notify("참조 이미지를 선택해주세요.");
+          return;
+        }
+
+        notify("장면에 대한 이미지를 생성합니다.");
+      }
+
+      // 1) pending placeholder 삽입
+      const placeholder: GeneratedImage = {
+        status: "pending",
+        sceneId,
+        timestamp: Date.now(),
+        confirmed: false,
+      };
+      setImagesByScene((prev) => {
+        const next = new Map(prev);
+        next.set(sceneId, placeholder);
+        return next;
+      });
+
+      try {
+        const prompt = scenesState.byId.get(sceneId)?.imagePrompt;
+
+        const body = {
+          prompt,
+          imageBase64: uploadedImage?.base64,
+          imageMimeType: uploadedImage?.mimeType,
+        };
+
+        const res = await fetch(`/api/image-gen/${sceneId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt,
+            imageBase64: uploadedImage?.base64,
+            imageMimeType: uploadedImage?.mimeType,
+          }),
+        });
+
+        console.log(body);
+
+        if (!res.ok) throw new Error("이미지 생성 실패");
+
+        const json = await res.json();
+
+        console.log(json);
+
+        if (json.success) {
+          setImagesByScene((prev) => {
+            const next = new Map(prev);
+            next.set(sceneId, {
+              status: "succeeded",
+              sceneId,
+              dataUrl: `data:image/png;base64,${json.generatedImage}`,
+              timestamp: Date.now(),
+              confirmed: false,
+            });
+            console.log(next);
+            return next;
+          });
+        } else {
+          throw new Error("Failed to create Image, Please change Prompt.");
+        }
+      } catch (e) {
+        setImagesByScene((prev) => {
+          const next = new Map(prev);
+          next.set(sceneId, {
+            status: "failed",
+            sceneId,
+            timestamp: Date.now(),
+            confirmed: false,
+            error: `생성 실패 : ${e}`,
+          });
+          return next;
+        });
+      }
+    },
+    [scenesState.byId, uploadedImage]
+  );
 
   const startImageQueue = useCallback(
     (intervalMs = 500) => {
@@ -638,15 +656,6 @@ export default function MakerPage() {
     });
   };
 
-  useEffect(() => {
-    return () => {
-      if (imageQueueTimerRef.current) {
-        clearInterval(imageQueueTimerRef.current);
-        imageQueueTimerRef.current = null;
-      }
-    };
-  }, []);
-
   const confirmAllImages = () => {
     setImagesByScene((prev) => {
       if (prev.size === 0) return prev;
@@ -658,152 +667,196 @@ export default function MakerPage() {
     });
   };
 
-  const generateClip = async (
-    sceneId: string,
-    aiType: "kling" | "seedance",
-    queue?: boolean
-  ) => {
-    const baseImage = imagesByScene.get(sceneId)?.dataUrl ?? "";
-
-    if (!queue) {
-      if (!baseImage || baseImage === "") {
-        notify("클립이 될 이미지를 먼저 만들어주세요.");
-        return;
+  useEffect(() => {
+    return () => {
+      if (imageQueueTimerRef.current) {
+        clearInterval(imageQueueTimerRef.current);
+        imageQueueTimerRef.current = null;
       }
-
-      if (!confirm("이전 클립은 삭제됩니다. 진행하시겠습니까?")) {
-        return;
-      }
-    }
-    // 1) pending placeholder 삽입
-    const placeholder: GeneratedClip = {
-      status: "pending",
-      sceneId,
-      timestamp: Date.now(),
-      confirmed: false,
     };
-    setClipsByScene((prev) => {
-      const next = new Map(prev);
-      next.set(sceneId, placeholder);
-      return next;
-    });
+  }, []);
 
-    const prompt = scenesState.byId.get(sceneId)?.clipPrompt;
+  const idleSceneClip = async (sceneId: string) => {
+    if (confirm("정말 초기화 하시겠습니까?")) {
+      const placeIdle: GeneratedClip = {
+        status: "idle",
+        sceneId,
+        timestamp: Date.now(),
+        confirmed: false,
+      };
 
-    // kling 요청 보내기
-    if (aiType === "kling") {
-      try {
-        const body = {
-          duration: "5",
-          image_base64: stripDataUrlPrefix(baseImage),
-          prompt,
-          negative_prompt: null,
-          cfg_scale: 0.5,
-        };
+      const clipId = clipsByScene.get(sceneId)?.taskUrl;
 
-        const response = await fetch(`/api/kling/clip-gen/${sceneId}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-
-        console.log(body);
-
-        if (!response.ok) throw new Error("이미지 생성 실패");
-
-        const json = (await response.json()) as KlingImageToVideoResponse;
-
-        console.log(json);
-
-        if (json.code !== 0) throw new Error("이미지 생성 실패");
-
-        setClipsByScene((prev) => {
-          const next = new Map(prev);
-          next.set(sceneId, {
-            status: "queueing",
-            taskUrl: json?.data?.task_id,
-            sceneId,
-            timestamp: Date.now(),
-            confirmed: false,
+      if (aiType === "seedance") {
+        try {
+          const response = await fetch(`/api/seedance/${clipId}`, {
+            method: "DELETE",
+            cache: "no-store",
           });
-          console.log(next);
-          return next;
-        });
-      } catch (error) {
-        setClipsByScene((prev) => {
-          const next = new Map(prev);
-          next.set(sceneId, {
-            status: "failed",
-            sceneId,
-            timestamp: Date.now(),
-            confirmed: false,
-            error: `생성 실패 : ${error}`,
-          });
-          return next;
-        });
+
+          if (!response.ok) {
+            throw new Error("Clip cancel failed");
+          }
+
+          console.log("Clip successfully cancelled", response);
+        } catch (error) {
+          console.error("token already consumed :", error);
+        }
       }
-    }
 
-    // seedance 요청 보내기
-    if (aiType === "seedance") {
-      try {
-        const body = {
-          model: "seedance-1-0-pro-250528",
-          content: [
-            {
-              type: "text",
-              text: prompt,
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: baseImage,
-              },
-            },
-          ],
-        };
-
-        const response = await fetch(`/api/seedance/clip-gen/${sceneId}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-
-        console.log(body);
-
-        if (!response.ok) throw new Error("이미지 생성 실패");
-
-        const json = (await response.json()) as SeeDanceImageToVideoResponse;
-
-        console.log(json);
-
-        setClipsByScene((prev) => {
-          const next = new Map(prev);
-          next.set(sceneId, {
-            status: "queueing",
-            taskUrl: json.id,
-            sceneId,
-            timestamp: Date.now(),
-            confirmed: false,
-          });
-          console.log(next);
-          return next;
-        });
-      } catch (error) {
-        setClipsByScene((prev) => {
-          const next = new Map(prev);
-          next.set(sceneId, {
-            status: "failed",
-            sceneId,
-            timestamp: Date.now(),
-            confirmed: false,
-            error: `생성 실패 : ${error}`,
-          });
-          return next;
-        });
-      }
+      setClipsByScene((prev) => {
+        const next = new Map(prev);
+        next.set(sceneId, placeIdle);
+        return next;
+      });
     }
   };
+
+  const handleGenerateClip = useCallback(
+    async (sceneId: string, aiType: "kling" | "seedance", queue?: boolean) => {
+      const baseImage = imagesByScene.get(sceneId)?.dataUrl ?? "";
+
+      if (!queue) {
+        if (!baseImage || baseImage === "") {
+          notify("클립이 될 이미지를 먼저 만들어주세요.");
+          return;
+        }
+
+        if (!confirm("이전 클립은 삭제됩니다. 진행하시겠습니까?")) {
+          return;
+        }
+      }
+      // 1) pending placeholder 삽입
+      const placeholder: GeneratedClip = {
+        status: "pending",
+        sceneId,
+        timestamp: Date.now(),
+        confirmed: false,
+      };
+      setClipsByScene((prev) => {
+        const next = new Map(prev);
+        next.set(sceneId, placeholder);
+        return next;
+      });
+
+      const prompt = scenesState.byId.get(sceneId)?.clipPrompt;
+
+      // kling 요청 보내기
+      if (aiType === "kling") {
+        try {
+          const body = {
+            duration: "5",
+            image_base64: stripDataUrlPrefix(baseImage),
+            prompt,
+            negative_prompt: null,
+            cfg_scale: 0.5,
+          };
+
+          const response = await fetch(`/api/kling/clip-gen/${sceneId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+
+          console.log(body);
+
+          if (!response.ok) throw new Error("이미지 생성 실패");
+
+          const json = (await response.json()) as KlingImageToVideoResponse;
+
+          console.log(json);
+
+          if (json.code !== 0) throw new Error("이미지 생성 실패");
+
+          setClipsByScene((prev) => {
+            const next = new Map(prev);
+            next.set(sceneId, {
+              status: "queueing",
+              taskUrl: json?.data?.task_id,
+              sceneId,
+              timestamp: Date.now(),
+              confirmed: false,
+            });
+            console.log(next);
+            return next;
+          });
+        } catch (error) {
+          setClipsByScene((prev) => {
+            const next = new Map(prev);
+            next.set(sceneId, {
+              status: "failed",
+              sceneId,
+              timestamp: Date.now(),
+              confirmed: false,
+              error: `생성 실패 : ${error}`,
+            });
+            return next;
+          });
+        }
+      }
+
+      // seedance 요청 보내기
+      if (aiType === "seedance") {
+        try {
+          const body = {
+            model: "seedance-1-0-pro-250528",
+            content: [
+              {
+                type: "text",
+                text: `${prompt} --resolution 720p --ratio 16:9 `,
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: baseImage,
+                },
+              },
+            ],
+          };
+
+          const response = await fetch(`/api/seedance/clip-gen/${sceneId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+
+          console.log(body);
+
+          if (!response.ok) throw new Error("이미지 생성 실패");
+
+          const json = (await response.json()) as SeeDanceImageToVideoResponse;
+
+          console.log(json);
+
+          setClipsByScene((prev) => {
+            const next = new Map(prev);
+            next.set(sceneId, {
+              status: "queueing",
+              taskUrl: json.id,
+              sceneId,
+              timestamp: Date.now(),
+              confirmed: false,
+            });
+            console.log(next);
+            return next;
+          });
+        } catch (error) {
+          setClipsByScene((prev) => {
+            const next = new Map(prev);
+            next.set(sceneId, {
+              status: "failed",
+              sceneId,
+              timestamp: Date.now(),
+              confirmed: false,
+              error: `생성 실패 : ${error}`,
+            });
+            return next;
+          });
+        }
+      }
+    },
+    [imagesByScene, scenesState.byId]
+  );
 
   const enqueueClipJob = useCallback(
     (job: ClipJob) => {
@@ -842,10 +895,10 @@ export default function MakerPage() {
         }
 
         // 응답 기다리지 않고 발사
-        void generateClip(next.sceneId, next.aiType, /* queue */ true);
+        void handleGenerateClip(next.sceneId, next.aiType, /* queue */ true);
       }, intervalMs);
     },
-    [generateClip]
+    [handleGenerateClip]
   );
 
   const getClip = async ({
@@ -929,7 +982,15 @@ export default function MakerPage() {
         const json = (await response.json()) as TaskResponse;
 
         if (json.status === "failed" || json.status === "cancled") {
-          throw new Error("API Error!");
+          throw new Error(`AI Error : ${json.error}`);
+        }
+
+        if (json.status === "queued") {
+          notify("요청 대기 중 입니다.");
+        }
+
+        if (json.status === "running") {
+          notify("클립 생성 중 입니다.");
         }
 
         if (json.status === "succeeded") {
@@ -953,7 +1014,6 @@ export default function MakerPage() {
             return next;
           });
         }
-        notify("이미지 생성 중 입니다.");
       } catch (error) {
         setClipsByScene((prev) => {
           const next = new Map(prev);
@@ -972,7 +1032,6 @@ export default function MakerPage() {
   };
 
   const generateAllClips = () => {
-    // 1) 선행 조건 검사
     if (imagesByScene.size < scenes.length) {
       notify("이미지를 먼저 만들어주세요.");
       return;
@@ -985,7 +1044,7 @@ export default function MakerPage() {
     )
       return;
 
-    // 2) 씬 순서대로 큐 적재 (이미지 없는 씬은 스킵)
+    // 씬 순서대로 큐 적재 (이미지 없는 씬은 스킵)
     let enqueued = 0;
     for (const sceneId of scenesState.order) {
       const base = imagesByScene.get(sceneId)?.dataUrl;
@@ -1005,15 +1064,6 @@ export default function MakerPage() {
     startClipQueue(500);
     notify(`${enqueued}개가 큐에 추가되었습니다.`);
   };
-
-  useEffect(() => {
-    return () => {
-      if (clipQueueTimerRef.current) {
-        clearInterval(clipQueueTimerRef.current);
-        clipQueueTimerRef.current = null;
-      }
-    };
-  }, []);
 
   const confirmClip = (sceneId: string) => {
     setClipsByScene((prev) => {
@@ -1035,6 +1085,15 @@ export default function MakerPage() {
       return next;
     });
   };
+
+  useEffect(() => {
+    return () => {
+      if (clipQueueTimerRef.current) {
+        clearInterval(clipQueueTimerRef.current);
+        clipQueueTimerRef.current = null;
+      }
+    };
+  }, []);
 
   /* ============ Audio: Narration ============ */
   const handleGenerateNarration = async () => {
@@ -1114,6 +1173,7 @@ export default function MakerPage() {
 
   const openHelp = () => notify("AI 영상을 한 플랫폼에서 시작해보세요.");
 
+  // 페이지 튕김 방지
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       if (!script && scenesState.byId.size === 0) return;
@@ -1162,13 +1222,15 @@ export default function MakerPage() {
             onConfirmImage={confirmImage}
             onConfirmAllImages={confirmAllImages}
             isConfirmedAllImage={allImagesConfirmed}
+            setIdleSceneImage={idleSceneImage}
             // clips
             clips={clipsByScene}
-            onGenerateClip={generateClip}
+            onGenerateClip={handleGenerateClip}
             onGenerateAllClips={generateAllClips}
             onConfirmClip={confirmClip}
             onConfirmAllClips={confirmAllClips}
             onQueueAction={getClip}
+            setIdleSceneClip={idleSceneClip}
           />
         </div>
 
@@ -1190,7 +1252,7 @@ export default function MakerPage() {
             onConfirmScene={confirmScene}
             onGenerateImage={handleGenerateImage}
             onConfirmImage={confirmImage}
-            onGenerateClip={generateClip}
+            onGenerateClip={handleGenerateClip}
             onConfirmClip={confirmClip}
           />
 
@@ -1310,27 +1372,8 @@ export default function MakerPage() {
               </Button>
             </div>
 
-            <div className="text-sm text-muted-foreground">
+            <div className="text-sm text-muted-foreground mr-8">
               {script ? `스크립트: ${script.length}자` : "스크립트 없음"}
-            </div>
-
-            <div className="flex w-42 justify-end items-center gap-2 select-none">
-              <Button
-                className="w-full rounded-tl-full rounded-bl-full rounded-tr-none rounded-br-none"
-                onClick={() => setStep((prev) => prev - 1)}
-                disabled={step === 0}
-                variant="default"
-              >
-                {stepTitle(step - 1)}
-              </Button>
-              <Button
-                className="w-full rounded-tl-none rounded-bl-none rounded-tr-full rounded-br-full"
-                onClick={() => setStep((prev) => prev + 1)}
-                disabled={step === 2}
-                variant="default"
-              >
-                {stepTitle(step + 1)}
-              </Button>
             </div>
           </div>
         </div>
