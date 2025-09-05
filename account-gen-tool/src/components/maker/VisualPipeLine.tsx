@@ -20,12 +20,11 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "../ui/hover-card";
+import { useAIConfigStore } from "@/lib/maker/useAiConfigStore";
 
 type Props = {
   step: number;
   setStep: (s: number) => void;
-  aiType: "kling" | "seedance";
-  setAiType: React.Dispatch<React.SetStateAction<"kling" | "seedance">>;
 
   // scenes
   scenes: Scene[];
@@ -76,8 +75,6 @@ const steps = [
 export default function VisualPipeline({
   step,
   setStep,
-  aiType,
-  setAiType,
 
   scenes,
   generatingScenes,
@@ -103,6 +100,13 @@ export default function VisualPipeline({
   onQueueAction,
   setIdleSceneClip,
 }: Props) {
+  const clipAiType = useAIConfigStore((config) => config.clipAiType);
+  const setClipAiType = useAIConfigStore((config) => config.setClipAiType);
+  const imageAiType = useAIConfigStore((config) => config.imageAiType);
+  const setImageAiType = useAIConfigStore((config) => config.setImageAiType);
+  const ratio = useAIConfigStore((config) => config.ratio);
+  const setRatio = useAIConfigStore((config) => config.setRatio);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [refFile, setRefFile] = useState<{
     file: File | null;
@@ -239,23 +243,63 @@ export default function VisualPipeline({
               {steps[step].sub}
             </p>
           </div>
-          <div className="inline-flex rounded-full border p-1 bg-card">
-            <Button
-              size="sm"
-              variant={aiType === "kling" ? "default" : "ghost"}
-              className="h-7 rounded-full"
-              onClick={() => setAiType("kling")}
-            >
-              Kling
-            </Button>
-            <Button
-              size="sm"
-              variant={aiType === "seedance" ? "default" : "ghost"}
-              className="h-7 rounded-full"
-              onClick={() => setAiType("seedance")}
-            >
-              Seedance
-            </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Image AI */}
+            <div className="inline-flex rounded-full border p-1 bg-card">
+              <Button
+                size="sm"
+                variant={imageAiType === "gemini" ? "default" : "ghost"}
+                className="h-7 rounded-full"
+                onClick={() => setImageAiType("gemini")}
+              >
+                Gemini
+              </Button>
+              <Button
+                size="sm"
+                variant={imageAiType === "gpt" ? "default" : "ghost"}
+                className="h-7 rounded-full"
+                onClick={() => setImageAiType("gpt")}
+              >
+                GPT
+              </Button>
+            </div>
+
+            {/* Clip AI */}
+            <div className="inline-flex rounded-full border p-1 bg-card">
+              <Button
+                size="sm"
+                variant={clipAiType === "kling" ? "default" : "ghost"}
+                className="h-7 rounded-full"
+                onClick={() => setClipAiType("kling")}
+              >
+                Kling
+              </Button>
+              <Button
+                size="sm"
+                variant={clipAiType === "seedance" ? "default" : "ghost"}
+                className="h-7 rounded-full"
+                onClick={() => setClipAiType("seedance")}
+              >
+                Seedance
+              </Button>
+            </div>
+
+            {/* Aspect Ratio */}
+            <div className="inline-flex rounded-full border p-1 bg-card">
+              {(["1:1", "4:3", "3:4", "16:9", "9:16", "21:9"] as const).map(
+                (r) => (
+                  <Button
+                    key={r}
+                    size="sm"
+                    variant={ratio === r ? "default" : "ghost"}
+                    className="h-7 rounded-full"
+                    onClick={() => setRatio(r)}
+                  >
+                    {r}
+                  </Button>
+                )
+              )}
+            </div>
           </div>
         </div>
 
@@ -300,7 +344,6 @@ export default function VisualPipeline({
                   scenes={scenes}
                   images={images}
                   clips={clips}
-                  aiType={aiType}
                   onGenerateClip={onGenerateClip}
                   onConfirmClip={onConfirmClip}
                   onConfirmAll={onConfirmAllClips}

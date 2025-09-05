@@ -10,15 +10,12 @@ import {
   Film,
   Clock,
 } from "lucide-react";
-import { useState } from "react";
-
-type RatioValue = "16:9" | "4:3" | "1:1" | "3:4" | "9:16" | "21:9";
+import { useAIConfigStore } from "@/lib/maker/useAiConfigStore";
 
 export default function ClipSection({
   scenes,
   images,
   clips,
-  aiType,
   onGenerateClip,
   onConfirmClip,
   onConfirmAll,
@@ -28,7 +25,6 @@ export default function ClipSection({
   scenes: Scene[];
   images: Map<string, GeneratedImage>;
   clips: Map<string, GeneratedClip>;
-  aiType: "kling" | "seedance";
   onGenerateClip: (
     sceneId: string,
     aiType: "kling" | "seedance"
@@ -44,7 +40,8 @@ export default function ClipSection({
   }) => Promise<void>;
   setIdleSceneClip: (sceneId: string) => void;
 }) {
-  const [ratio, setRatio] = useState<string>("1:1");
+  const clipAiType = useAIConfigStore((config) => config.clipAiType);
+
   const anyClipReady =
     Array.from(clips.values()).filter((c) => !!c.dataUrl).length > 0;
 
@@ -76,7 +73,9 @@ export default function ClipSection({
         </div>
 
         <div className="flex items-center gap-2">
-          <Button onClick={() => viewProcess(aiType)}>진행 상황 보기</Button>
+          <Button onClick={() => viewProcess(clipAiType)}>
+            진행 상황 보기
+          </Button>
           {anyClipReady && (
             <Button size="sm" variant="outline" onClick={onConfirmAll}>
               전체 확정
@@ -157,12 +156,16 @@ export default function ClipSection({
                           size="sm"
                           variant="secondary"
                           onClick={() => {
-                            console.log(aiType);
+                            console.log(clipAiType);
                             onQueueAction({
                               sceneId: scene.id,
-                              aiType: aiType,
+                              aiType: clipAiType,
                             });
-                            console.log(scene.id, aiType, clips.get(scene.id));
+                            console.log(
+                              scene.id,
+                              clipAiType,
+                              clips.get(scene.id)
+                            );
                           }}
                           className="h-7"
                         >
@@ -179,7 +182,7 @@ export default function ClipSection({
                       className="flex-1"
                       size="sm"
                       variant="outline"
-                      onClick={() => onGenerateClip(scene.id, aiType)}
+                      onClick={() => onGenerateClip(scene.id, clipAiType)}
                       disabled={isGenerating || isQueueing}
                     >
                       {isGenerating ? (

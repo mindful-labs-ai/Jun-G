@@ -31,9 +31,7 @@ export async function POST(request: NextRequest) {
 
     console.log(response);
 
-    const saver = response.output_text;
-
-    return Response.json(JSON.parse(saver));
+    return Response.json(response);
   } catch (err) {
     console.error(err);
     return Response.json({ error: err }, { status: 500 });

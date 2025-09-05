@@ -36,6 +36,7 @@ import {
 } from "../api/seedance/clip-gen/[id]/route";
 import { KlingImageToVideoResponse } from "../api/kling/clip-gen/[id]/route";
 import { KlingImageToVideoStatusResponse } from "../api/kling/[id]/route";
+import { useAIConfigStore } from "@/lib/maker/useAiConfigStore";
 
 type ClipJob = { sceneId: string; aiType: "kling" | "seedance" };
 
@@ -59,7 +60,11 @@ export default function MakerPage() {
   const [uploadedImage, setUploadedImage] = useState<UploadedImage | null>(
     null
   );
-  const [aiType, setAiType] = useState<"kling" | "seedance">("kling");
+
+  // ai config state
+  const imageAiType = useAIConfigStore((config) => config.imageAiType);
+  const clipAiType = useAIConfigStore((config) => config.clipAiType);
+  const sourceRatio = useAIConfigStore((config) => config.ratio);
 
   // UI/flow state
   const [editingScene, setEditingScene] = useState<string | null>(null);
@@ -76,14 +81,6 @@ export default function MakerPage() {
 
   // funnel state
   const [step, setStep] = useState<number>(0);
-  const stepTitle = (s: number) =>
-    s === 0
-      ? "장면 스텝"
-      : s === 1
-      ? "이미지 스텝"
-      : s === 2
-      ? "클립 스텝"
-      : "X";
 
   // audio sim
   const [audioOpen, setAudioOpen] = useState(false);
@@ -526,64 +523,112 @@ export default function MakerPage() {
         return next;
       });
 
-      try {
-        const prompt = scenesState.byId.get(sceneId)?.imagePrompt;
+      const prompt = scenesState.byId.get(sceneId)?.imagePrompt;
 
-        const body = {
-          prompt,
-          imageBase64: uploadedImage?.base64,
-          imageMimeType: uploadedImage?.mimeType,
-        };
-
-        const res = await fetch(`/api/image-gen/gemini/${sceneId}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+      if (imageAiType === "gemini") {
+        try {
+          const body = {
             prompt,
             imageBase64: uploadedImage?.base64,
             imageMimeType: uploadedImage?.mimeType,
-          }),
-        });
+          };
 
-        console.log(body);
+          const res = await fetch(`/api/image-gen/gemini/${sceneId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
 
-        if (!res.ok) throw new Error("이미지 생성 실패");
+          console.log(body);
 
-        const json = await res.json();
+          if (!res.ok) throw new Error("이미지 생성 실패");
 
-        console.log(json);
+          const json = await res.json();
 
-        if (json.success) {
+          console.log(json);
+
+          if (json.success) {
+            setImagesByScene((prev) => {
+              const next = new Map(prev);
+              next.set(sceneId, {
+                status: "succeeded",
+                sceneId,
+                dataUrl: `data:image/png;base64,${json.generatedImage}`,
+                timestamp: Date.now(),
+                confirmed: false,
+              });
+              console.log(next);
+              return next;
+            });
+          } else {
+            throw new Error("Failed to create Image, Please change Prompt.");
+          }
+        } catch (e) {
           setImagesByScene((prev) => {
             const next = new Map(prev);
             next.set(sceneId, {
-              status: "succeeded",
+              status: "failed",
               sceneId,
-              dataUrl: `data:image/png;base64,${json.generatedImage}`,
               timestamp: Date.now(),
               confirmed: false,
+              error: `생성 실패 : ${e}`,
             });
-            console.log(next);
             return next;
           });
-        } else {
-          throw new Error("Failed to create Image, Please change Prompt.");
         }
-      } catch (e) {
-        setImagesByScene((prev) => {
-          const next = new Map(prev);
-          next.set(sceneId, {
-            status: "failed",
-            sceneId,
-            timestamp: Date.now(),
-            confirmed: false,
-            error: `생성 실패 : ${e}`,
+      }
+
+      if (imageAiType === "gpt") {
+        try {
+          const body = {
+            prompt,
+            imageUrl: uploadedImage?.dataUrl,
+          };
+
+          const res = await fetch(`/api/image-gen/gpt/${sceneId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
           });
-          return next;
-        });
+
+          if (!res.ok) throw new Error("이미지 생성 실패");
+
+          const json = await res.json();
+
+          console.log(json);
+
+          if (json.output[0].status === "completed") {
+            setImagesByScene((prev) => {
+              const next = new Map(prev);
+              next.set(sceneId, {
+                status: "succeeded",
+                sceneId,
+                dataUrl: `data:image/png;base64,${json.output[0].result}`,
+                timestamp: Date.now(),
+                confirmed: false,
+              });
+              console.log(next);
+              return next;
+            });
+          } else {
+            throw new Error("Failed to create Image, Please change Prompt.");
+          }
+        } catch (e) {
+          setImagesByScene((prev) => {
+            const next = new Map(prev);
+            next.set(sceneId, {
+              status: "failed",
+              sceneId,
+              timestamp: Date.now(),
+              confirmed: false,
+              error: `생성 실패 : ${e}`,
+            });
+            return next;
+          });
+        }
       }
     },
-    [scenesState.byId, uploadedImage]
+    [scenesState.byId, uploadedImage, imageAiType]
   );
 
   const startImageQueue = useCallback(
@@ -687,7 +732,7 @@ export default function MakerPage() {
 
       const clipId = clipsByScene.get(sceneId)?.taskUrl;
 
-      if (aiType === "seedance") {
+      if (clipAiType === "seedance") {
         try {
           const response = await fetch(`/api/seedance/${clipId}`, {
             method: "DELETE",
@@ -803,7 +848,7 @@ export default function MakerPage() {
             content: [
               {
                 type: "text",
-                text: `${prompt} --resolution 720p --ratio 16:9 `,
+                text: `${prompt} --resolution 720p --ratio ${sourceRatio} `,
               },
               {
                 type: "image_url",
@@ -1049,7 +1094,7 @@ export default function MakerPage() {
     for (const sceneId of scenesState.order) {
       const base = imagesByScene.get(sceneId)?.dataUrl;
       if (!base) continue; // 안전장치: base image 없는 씬은 제외
-      enqueueClipJob({ sceneId, aiType });
+      enqueueClipJob({ sceneId, aiType: clipAiType });
       enqueued++;
     }
 
@@ -1194,15 +1239,11 @@ export default function MakerPage() {
         onZip={handleZipDownload}
       />
 
-      <Button onClick={() => console.log(uploadedImage)}>테스트</Button>
-
       <main className="container mx-auto px-4 py-6">
         <div className="grid grid-cols-1 gap-6 mb-2">
           <VisualPipeline
             step={step}
             setStep={setStep}
-            aiType={aiType}
-            setAiType={setAiType}
             // scenes
             scenes={deferredScenes}
             generatingScenes={generatingScenes}
