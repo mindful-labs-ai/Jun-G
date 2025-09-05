@@ -1,10 +1,16 @@
+// app/api/gemini/generate-with-image/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-export const runtime = "nodejs";
+export const runtime = "nodejs"; // Edge로 바꿔도 되지만 nodejs 그대로 사용해도 OK
 export const dynamic = "force-dynamic";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+
+type CandidatePart = {
+  inlineData?: { mimeType?: string; data?: string };
+  text?: string;
+};
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,50 +19,43 @@ export async function POST(request: NextRequest) {
 
     if (!prompt || !imageBase64 || !imageMimeType) {
       return NextResponse.json(
-        { error: "필수 파라미터가 누락되었습니다." },
+        { success: false, error: "필수 파라미터가 누락되었습니다." },
         { status: 400 }
       );
     }
 
-    // 더 명확한 이미지 생성 프롬프트
-    const enhancedPrompt = `${prompt}. Generate a 1024x1024 pixel image .`;
-
-    const promptParts = [
-      { text: enhancedPrompt },
-      {
-        inlineData: {
-          mimeType: imageMimeType,
-          data: imageBase64,
-        },
-      },
-    ];
+    // 사이즈에 대한 계속된 명령을 주되, 실제 리사이즈는 하지 않음
+    const enhancedPrompt = `${prompt}. Generate a 1024x1024 pixel image.`;
 
     const result = await genAI
-      .getGenerativeModel({
-        model: "gemini-2.5-flash-image-preview",
-      })
+      .getGenerativeModel({ model: "gemini-2.5-flash-image-preview" })
       .generateContent({
         contents: [
           {
             role: "user",
-            parts: promptParts,
+            parts: [
+              { text: enhancedPrompt },
+              {
+                inlineData: {
+                  mimeType: imageMimeType,
+                  data: imageBase64,
+                },
+              },
+            ],
           },
         ],
       });
 
     const response = await result.response;
 
-    // 응답 상세 로깅
-    console.log("Gemini Response:", {
-      candidates: response.candidates?.length,
-      parts: response.candidates?.[0]?.content?.parts,
-    });
-
     // 응답 파싱
-    let generatedImageBase64 = null;
+    let generatedImageBase64: string | null = null;
     let textResponse = "";
 
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
+    const parts: CandidatePart[] =
+      (response.candidates?.[0]?.content?.parts as CandidatePart[]) ?? [];
+
+    for (const part of parts) {
       if (part.inlineData?.data) {
         generatedImageBase64 = part.inlineData.data;
       }
@@ -65,56 +64,24 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 이미지가 생성된 경우 크기 조정
-    if (generatedImageBase64) {
-      // Base64를 1024x1024로 리사이즈 (서버 사이드)
-      generatedImageBase64 = await resizeImageToSquare(
-        generatedImageBase64,
-        1024
-      );
-    }
-
+    // 리사이즈 완전 제거: 그대로 반환
     return NextResponse.json({
       success: !!generatedImageBase64,
-      generatedImage: generatedImageBase64,
-      textResponse: textResponse,
-      imageSize: "1024x1024",
+      generatedImage: generatedImageBase64, // base64 (data: prefix 없이)
+      textResponse,
+      // imageSize 표시만 힌트 용도. 원본 그대로일 수 있음
+      imageSize: "original",
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Gemini API Error:", error);
     return NextResponse.json(
       {
+        success: false,
         error: "이미지 생성 중 오류가 발생했습니다.",
         details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 }
     );
-  }
-}
-
-// 이미지 리사이즈 함수 (서버 사이드)
-async function resizeImageToSquare(
-  base64: string,
-  size: number
-): Promise<string> {
-  // ESM 동적 import (require 사용 금지)
-  const { default: sharp } = await import("sharp");
-
-  try {
-    // data URL도 허용: 'data:image/png;base64,....' → 순수 base64만 추출
-    const comma = base64.indexOf(",");
-    const pureBase64 = comma >= 0 ? base64.slice(comma + 1) : base64;
-
-    const buffer = Buffer.from(pureBase64, "base64");
-    const resizedBuffer = await sharp(buffer)
-      .resize(size, size, { fit: "cover", position: "center" })
-      .png()
-      .toBuffer();
-
-    return resizedBuffer.toString("base64"); // 필요 시 앞에 data URL 프리픽스 붙여 사용
-  } catch (error) {
-    console.error("Image resize error:", error);
-    return base64; // 실패 시 원본 반환
   }
 }

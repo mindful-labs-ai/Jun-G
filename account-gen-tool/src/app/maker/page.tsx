@@ -71,6 +71,7 @@ export default function MakerPage() {
   // loading flags
   const [generatingScenes, setGeneratingScenes] = useState(false);
   const [generatingNarration, setGeneratingNarration] = useState(false);
+  const [zipDownloading, setZipDownloading] = useState(false);
 
   // funnel state
   const [step, setStep] = useState<number>(0);
@@ -230,8 +231,9 @@ export default function MakerPage() {
     return String(n).padStart(2, "0");
   }
 
-  // === [교체] ZIP 다운로드 로직 ===
+  // === ZIP 다운로드 로직 ===
   const handleZipDownload = async () => {
+    setZipDownloading(true);
     try {
       // 지표 검사
       const okImages = Array.from(imagesByScene.entries()).filter(
@@ -349,6 +351,8 @@ export default function MakerPage() {
     } catch (err) {
       console.error(err);
       notify(`압축 중 오류: ${err}`);
+    } finally {
+      setZipDownloading(false);
     }
   };
 
@@ -476,7 +480,6 @@ export default function MakerPage() {
         notify("참조 이미지를 선택해주세요.");
         return;
       }
-      return;
     }
 
     // 1) pending placeholder 삽입
@@ -519,18 +522,22 @@ export default function MakerPage() {
 
       console.log(json);
 
-      setImagesByScene((prev) => {
-        const next = new Map(prev);
-        next.set(sceneId, {
-          status: "succeeded",
-          sceneId,
-          dataUrl: `data:image/png;base64,${json.generatedImage}`,
-          timestamp: Date.now(),
-          confirmed: false,
+      if (json.success) {
+        setImagesByScene((prev) => {
+          const next = new Map(prev);
+          next.set(sceneId, {
+            status: "succeeded",
+            sceneId,
+            dataUrl: `data:image/png;base64,${json.generatedImage}`,
+            timestamp: Date.now(),
+            confirmed: false,
+          });
+          console.log(next);
+          return next;
         });
-        console.log(next);
-        return next;
-      });
+      } else {
+        throw new Error("Failed to create Image, Please change Prompt.");
+      }
     } catch (e) {
       setImagesByScene((prev) => {
         const next = new Map(prev);
@@ -976,6 +983,7 @@ export default function MakerPage() {
         onBack={() => router.replace("/")}
         onEditScript={handleEditScript}
         status={status}
+        zipDownloading={zipDownloading}
         onZip={handleZipDownload}
       />
 
