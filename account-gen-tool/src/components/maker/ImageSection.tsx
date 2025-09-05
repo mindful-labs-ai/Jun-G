@@ -155,7 +155,7 @@ export default function ImageSection({
                           variant="link"
                           onClick={() => setIdleSceneImage(scene.id)}
                         >
-                          클립 초기화
+                          이미지 초기화
                         </Button>
                       </span>
                     </div>
