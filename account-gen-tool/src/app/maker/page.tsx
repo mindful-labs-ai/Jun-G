@@ -493,9 +493,9 @@ export default function MakerPage() {
         notify("참조 이미지를 선택해주세요.");
         return;
       }
-    }
 
-    notify("장면에 대한 이미지를 생성합니다.");
+      notify("장면에 대한 이미지를 생성합니다.");
+    }
 
     // 1) pending placeholder 삽입
     const placeholder: GeneratedImage = {
