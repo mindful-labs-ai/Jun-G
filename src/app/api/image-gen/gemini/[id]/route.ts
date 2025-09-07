@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 사이즈에 대한 계속된 명령을 주되, 실제 리사이즈는 하지 않음
-    const enhancedPrompt = `${prompt}. Generate a 1024x1024 pixel image.`;
+    const enhancedPrompt = `Generate A masterpiece Japanese style anime illustration 1024x1024 pixel image ${prompt}.`;
 
     const result = await genAI
       .getGenerativeModel({ model: "gemini-2.5-flash-image-preview" })

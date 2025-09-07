@@ -5,7 +5,7 @@ import OpenAI from "openai";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+const client = new OpenAI({ apiKey: process.env.OPENAI_SCRIPT_API_KEY! });
 
 export async function POST(req: NextRequest) {
   try {

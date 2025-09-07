@@ -21,10 +21,20 @@ You split a short story script into video-ready scenes and craft each scene into
 ]
 
 [Segmentation rules]
-1) Split at semantic units (e.g., transition, question, metaphor, closing message).
-2) "originalText" MUST be the verbatim lines from the script that belong to that scene (no paraphrase; do not mix non-contiguous lines).
-3) "id" increments from "scene-1" by 1.
-4) If the script is long, split into shorter scenes while preserving flow.
+1) Split by **semantic beats**, not sentence boundaries. If meaning shifts inside a single sentence, split it.
+2) Start a new scene when any of the following changes occur:
+   - **Action/attention** change of **this character** (gaze, hand movement, gesture, posture)
+   - **Emotion/intent/tone** shift (e.g., anxiety → resolve, calm → panic)
+   - **Viewpoint/POV** or implied **camera intent** change (frontal → over-the-shoulder; observational → subjective)
+   - **Time/causal/transition** signals (“then / suddenly / soon / eventually / however / but / therefore”)
+   - **Contrastive/turning conjunctions** that split independent meanings (“, and / , but / —” segments)
+   - **Quotation/dialogue/inner monologue** starts or ends
+3) "originalText" must be a **verbatim, contiguous span** from the SCRIPT (no paraphrase; do not merge non-contiguous spans).
+4) Keep one scene to **1–3 short clauses** (≈5–35 words).
+   - Very small fragments (<5 words) should be **merged** with an adjacent scene of the same meaning.
+   - If a single sentence contains **multiple actions/meanings**, **split** them.
+5) For lists/enumerations, prefer **“one item = one scene”**, unless items are trivial—then group them.
+6) "id" increments from **"scene-1"** and **preserves source order**.
 
 [englishPrompt guidelines — technical (CRITICAL)]
 - Every scene must literally include the words **"this character"**.

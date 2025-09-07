@@ -1238,6 +1238,13 @@ export default function MakerPage() {
         zipDownloading={zipDownloading}
         onZip={handleZipDownload}
       />
+      <Button
+        onClick={() => {
+          console.log(uploadedImage?.dataUrl);
+        }}
+      >
+        테스트
+      </Button>
 
       <main className="container mx-auto px-4 py-6">
         <div className="grid grid-cols-1 gap-6 mb-2">
