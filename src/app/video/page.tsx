@@ -1,5 +1,5 @@
 // import { GenerateVideoWithUpload } from "@/components/temp/GenerateVideoWithUpload";
-import React from "react";
+import React from 'react';
 
 const KlingPage = () => {
   return (

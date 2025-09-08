@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { Button } from "@/components/ui/button";
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -8,8 +8,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { AlertTriangle } from "lucide-react";
+} from '@/components/ui/dialog';
+import { AlertTriangle } from 'lucide-react';
 
 export default function ResetDialog({
   open,
@@ -28,17 +28,17 @@ export default function ResetDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-destructive" />
+          <DialogTitle className='flex items-center gap-2'>
+            <AlertTriangle className='w-5 h-5 text-destructive' />
             하위 단계 초기화 경고
           </DialogTitle>
           <DialogDescription>{message}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>
+          <Button variant='outline' onClick={onCancel}>
             취소
           </Button>
-          <Button variant="destructive" onClick={onConfirm}>
+          <Button variant='destructive' onClick={onConfirm}>
             계속 진행
           </Button>
         </DialogFooter>

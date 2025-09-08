@@ -22,7 +22,7 @@ export interface UploadedImage {
 }
 
 export interface GeneratedImage {
-  status: "idle" | "pending" | "succeeded" | "failed";
+  status: 'idle' | 'pending' | 'succeeded' | 'failed';
   sceneId: string;
   dataUrl?: string;
   timestamp: number;
@@ -31,7 +31,7 @@ export interface GeneratedImage {
 }
 
 export interface GeneratedClip {
-  status: "idle" | "pending" | "queueing" | "succeeded" | "failed";
+  status: 'idle' | 'pending' | 'queueing' | 'succeeded' | 'failed';
   sceneId: string;
   taskUrl?: string;
   dataUrl?: string;
@@ -56,4 +56,4 @@ export interface GeneratedNarration {
   confirmed: boolean;
 }
 
-export type ResetType = "script" | "image" | "scene";
+export type ResetType = 'script' | 'image' | 'scene';

@@ -1,5 +1,5 @@
-import { GeminiImageWithUpload } from "@/components/temp/ImageToBase64";
-import React from "react";
+import { GeminiImageWithUpload } from '@/components/temp/ImageToBase64';
+import React from 'react';
 
 const GeminiPage = () => {
   return (

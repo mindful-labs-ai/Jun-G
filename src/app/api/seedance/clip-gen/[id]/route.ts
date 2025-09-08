@@ -1,21 +1,21 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from 'next/server';
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export interface TextBlock {
-  type: "text";
+  type: 'text';
   text: string;
   role?: string;
 }
 
 /** 이미지 URL 블록 */
 export interface ImageUrlBlock {
-  type: "image_url";
+  type: 'image_url';
   image_url: {
     url: string;
   };
-  role?: "reference_image" | string;
+  role?: 'reference_image' | string;
 }
 
 export interface ImageToVideoRequest {
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: "API key not configured" },
+        { error: 'API key not configured' },
         { status: 500 }
       );
     }
@@ -60,9 +60,9 @@ export async function POST(request: NextRequest) {
     const response = await fetch(
       `https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks`,
       {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
@@ -75,15 +75,15 @@ export async function POST(request: NextRequest) {
     const data = await response.json();
 
     // 응답 상세 로깅
-    console.log("Seedance Response:", data);
+    console.log('Seedance Response:', data);
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Seedance API Error:", error);
+    console.error('Seedance API Error:', error);
     return NextResponse.json(
       {
-        error: "이미지 생성 중 오류가 발생했습니다.",
-        details: error instanceof Error ? error.message : "Unknown error",
+        error: '이미지 생성 중 오류가 발생했습니다.',
+        details: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
     );
@@ -97,12 +97,12 @@ export async function GET() {
     const response = await fetch(
       `https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks?page_size=10&filter.status=succeeded&`,
       {
-        method: "GET",
+        method: 'GET',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${apiKey}`,
         },
-        cache: "no-store",
+        cache: 'no-store',
       }
     );
 

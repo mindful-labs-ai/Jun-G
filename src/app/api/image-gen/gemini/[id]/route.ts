@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { NextRequest, NextResponse } from 'next/server';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 
     if (!prompt || !imageBase64 || !imageMimeType) {
       return NextResponse.json(
-        { success: false, error: "필수 파라미터가 누락되었습니다." },
+        { success: false, error: '필수 파라미터가 누락되었습니다.' },
         { status: 400 }
       );
     }
@@ -27,11 +27,11 @@ export async function POST(request: NextRequest) {
     const enhancedPrompt = `Generate A masterpiece Japanese style anime illustration 1024x1024 pixel image ${prompt}.`;
 
     const result = await genAI
-      .getGenerativeModel({ model: "gemini-2.5-flash-image-preview" })
+      .getGenerativeModel({ model: 'gemini-2.5-flash-image-preview' })
       .generateContent({
         contents: [
           {
-            role: "user",
+            role: 'user',
             parts: [
               { text: enhancedPrompt },
               {
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     // 응답 파싱
     let generatedImageBase64: string | null = null;
-    let textResponse = "";
+    let textResponse = '';
 
     const parts: CandidatePart[] =
       (response.candidates?.[0]?.content?.parts as CandidatePart[]) ?? [];
@@ -68,16 +68,16 @@ export async function POST(request: NextRequest) {
       success: !!generatedImageBase64,
       generatedImage: generatedImageBase64,
       textResponse,
-      imageSize: "original",
+      imageSize: 'original',
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("Gemini API Error:", error);
+    console.error('Gemini API Error:', error);
     return NextResponse.json(
       {
         success: false,
-        error: "이미지 생성 중 오류가 발생했습니다.",
-        details: error instanceof Error ? error.message : "Unknown error",
+        error: '이미지 생성 중 오류가 발생했습니다.',
+        details: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
     );

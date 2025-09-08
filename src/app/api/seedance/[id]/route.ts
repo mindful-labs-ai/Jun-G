@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from 'next/server';
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function GET(
   _request: NextRequest,
@@ -10,14 +10,14 @@ export async function GET(
   const taskId = (await ctx.params).id;
 
   if (!taskId)
-    return NextResponse.json({ error: "id required" }, { status: 400 });
+    return NextResponse.json({ error: 'id required' }, { status: 400 });
 
   try {
     const apiKey = process.env.SEEDANCE_API_KEY;
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: "API key not configured" },
+        { error: 'API key not configured' },
         { status: 500 }
       );
     }
@@ -25,12 +25,12 @@ export async function GET(
     const response = await fetch(
       `https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks/${taskId}`,
       {
-        method: "GET",
+        method: 'GET',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${apiKey}`,
         },
-        cache: "no-store",
+        cache: 'no-store',
       }
     );
 
@@ -51,14 +51,14 @@ export async function DELETE(
   const taskId = (await ctx.params).id;
 
   if (!taskId)
-    return NextResponse.json({ error: "id required" }, { status: 400 });
+    return NextResponse.json({ error: 'id required' }, { status: 400 });
 
   try {
     const apiKey = process.env.SEEDANCE_API_KEY;
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: "API key not configured" },
+        { error: 'API key not configured' },
         { status: 500 }
       );
     }
@@ -66,12 +66,12 @@ export async function DELETE(
     const response = await fetch(
       `https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks/${taskId}`,
       {
-        method: "DELETE",
+        method: 'DELETE',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${apiKey}`,
         },
-        cache: "no-store",
+        cache: 'no-store',
       }
     );
 

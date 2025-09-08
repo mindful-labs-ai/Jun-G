@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
+import { NextRequest, NextResponse } from 'next/server';
+import jwt from 'jsonwebtoken';
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export interface KlingImageToVideoStatusResponse {
   code: number; // 0 = 성공
@@ -12,13 +12,13 @@ export interface KlingImageToVideoStatusResponse {
 }
 
 export type KlingTaskStatus =
-  | "pending"
-  | "processing"
-  | "submitted"
-  | "running"
-  | "succeed"
-  | "failed"
-  | "canceled";
+  | 'pending'
+  | 'processing'
+  | 'submitted'
+  | 'running'
+  | 'succeed'
+  | 'failed'
+  | 'canceled';
 
 export interface KlingTaskData {
   task_id: string; // "791749406890147886"
@@ -50,7 +50,7 @@ export async function GET(
   const taskId = (await ctx.params).id;
 
   if (!taskId)
-    return NextResponse.json({ error: "id required" }, { status: 400 });
+    return NextResponse.json({ error: 'id required' }, { status: 400 });
 
   try {
     const ACCESS = process.env.KLING_ACCESS_KEY!;
@@ -63,12 +63,12 @@ export async function GET(
         nbf: Math.floor(Date.now() / 1000) - 5,
       },
       SECRET,
-      { algorithm: "HS256" }
+      { algorithm: 'HS256' }
     );
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: "API key not configured" },
+        { error: 'API key not configured' },
         { status: 500 }
       );
     }
@@ -76,12 +76,12 @@ export async function GET(
     const response = await fetch(
       `${process.env.KLING_BASE_URL}/v1/videos/image2video/${taskId}`,
       {
-        method: "GET",
+        method: 'GET',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${apiKey}`,
         },
-        cache: "no-store",
+        cache: 'no-store',
       }
     );
 

@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import TextareaAutosize from "react-textarea-autosize";
-import { useEffect, useMemo, useRef, useState } from "react";
+import TextareaAutosize from 'react-textarea-autosize';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 type SceneLike = {
   id: string;
@@ -10,7 +10,7 @@ type SceneLike = {
 
 type Props = {
   scene: SceneLike;
-  mode: "image" | "clip";
+  mode: 'image' | 'clip';
   // 무거운 빌더는 외부에서 주입
   buildImage: (scene: NonNullable<SceneLike>) => string;
   buildClip: (scene: NonNullable<SceneLike>) => string;
@@ -24,11 +24,11 @@ type Props = {
 // 안전하게 override 읽는 헬퍼(필드가 없어도 에러 안 남)
 function readOverride(
   scene: NonNullable<SceneLike>,
-  key: "image_prompt_override" | "clip_prompt_override"
+  key: 'image_prompt_override' | 'clip_prompt_override'
 ) {
-  if (typeof scene !== "object" || scene === null) return null;
+  if (typeof scene !== 'object' || scene === null) return null;
   const val = (scene as Record<string, unknown>)[key];
-  return typeof val === "string" ? val : null;
+  return typeof val === 'string' ? val : null;
 }
 
 export default function PromptEditor({
@@ -46,17 +46,17 @@ export default function PromptEditor({
 
   // 무거운 빌더 결과는 memo
   const built = useMemo(() => {
-    if (!scene) return "";
-    return mode === "image" ? buildImage(scene) : buildClip(scene);
+    if (!scene) return '';
+    return mode === 'image' ? buildImage(scene) : buildClip(scene);
     // ⚠️ build 함수 내부에서 참조하는 scene의 필드만 deps에 넣으면 더 효율적
   }, [scene, mode, buildImage, buildClip]);
 
   // override가 있으면 우선 사용(필드가 없어도 안전)
   const override = useMemo(() => {
     if (!scene) return null;
-    return mode === "image"
-      ? readOverride(scene, "image_prompt_override")
-      : readOverride(scene, "clip_prompt_override");
+    return mode === 'image'
+      ? readOverride(scene, 'image_prompt_override')
+      : readOverride(scene, 'clip_prompt_override');
   }, [scene, mode]);
 
   // 로컬 버퍼(입력 중 상위 리렌더 방지)
@@ -70,7 +70,7 @@ export default function PromptEditor({
   const tRef = useRef<number | null>(null);
   useEffect(() => {
     if (!scene) return;
-    const handler = mode === "image" ? onCommitImage : onCommitClip;
+    const handler = mode === 'image' ? onCommitImage : onCommitClip;
     if (!handler) return; // 읽기 전용
 
     const source = override ?? built;
@@ -97,12 +97,12 @@ export default function PromptEditor({
 
   return (
     <TextareaAutosize
-      className="min-h-[220px] w-full disabled:text-black disabled:cursor-not-allowed resize-none rounded-lg break-keep font-mono text-sm"
+      className='min-h-[220px] w-full disabled:text-black disabled:cursor-not-allowed resize-none rounded-lg break-keep font-mono text-sm'
       value={buf}
-      onChange={(e) => setBuf(e.target.value)}
+      onChange={e => setBuf(e.target.value)}
       onBlur={() => {
         if (!scene) return;
-        const handler = mode === "image" ? onCommitImage : onCommitClip;
+        const handler = mode === 'image' ? onCommitImage : onCommitClip;
         if (!handler) return; // 읽기 전용
         const source = override ?? built;
         if (buf !== source) handler(scene.id, buf);

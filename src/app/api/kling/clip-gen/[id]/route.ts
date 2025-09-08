@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
+import { NextRequest, NextResponse } from 'next/server';
+import jwt from 'jsonwebtoken';
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export interface ImageToVideoRequest {
   image_url?: string; // 이미지 URL
@@ -30,7 +30,7 @@ export interface KlingImageToVideoResponse {
 // 작업 상태 조회 응답
 export interface TaskStatusResponse {
   task_id: string;
-  status: "pending" | "processing" | "completed" | "failed";
+  status: 'pending' | 'processing' | 'completed' | 'failed';
   progress?: number;
   video_url?: string;
   thumbnail_url?: string;
@@ -56,12 +56,12 @@ export async function POST(request: NextRequest) {
         nbf: Math.floor(Date.now() / 1000) - 5,
       },
       SECRET,
-      { algorithm: "HS256" }
+      { algorithm: 'HS256' }
     );
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: "API key not configured" },
+        { error: 'API key not configured' },
         { status: 500 }
       );
     }
@@ -69,14 +69,14 @@ export async function POST(request: NextRequest) {
     const response = await fetch(
       `${process.env.KLING_BASE_URL}/v1/videos/image2video`,
       {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model_name: "kling-v2-1",
-          mode: "std",
+          model_name: 'kling-v2-1',
+          mode: 'std',
           duration: body.duration,
           image: body.image_base64,
           prompt: body.prompt,
@@ -89,15 +89,15 @@ export async function POST(request: NextRequest) {
     const data = (await response.json()) as KlingImageToVideoResponse;
 
     // 응답 상세 로깅
-    console.log("Kling Response:", data);
+    console.log('Kling Response:', data);
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Kling API Error:", error);
+    console.error('Kling API Error:', error);
     return NextResponse.json(
       {
-        error: "이미지 생성 중 오류가 발생했습니다.",
-        details: error instanceof Error ? error.message : "Unknown error",
+        error: '이미지 생성 중 오류가 발생했습니다.',
+        details: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
     );
@@ -116,12 +116,12 @@ export async function GET() {
         nbf: Math.floor(Date.now() / 1000) - 5,
       },
       SECRET,
-      { algorithm: "HS256" }
+      { algorithm: 'HS256' }
     );
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: "API key not configured" },
+        { error: 'API key not configured' },
         { status: 500 }
       );
     }
@@ -129,12 +129,12 @@ export async function GET() {
     const response = await fetch(
       `${process.env.KLING_BASE_URL}/v1/videos/image2video?pageNum=1&pageSize=30`,
       {
-        method: "GET",
+        method: 'GET',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${apiKey}`,
         },
-        cache: "no-store",
+        cache: 'no-store',
       }
     );
 
