@@ -19,8 +19,10 @@ export interface ImageUrlBlock {
 }
 
 export interface ImageToVideoRequest {
-  model: string;
-  content: Array<TextBlock | ImageUrlBlock>;
+  prompt: string;
+  baseImage: string;
+  resolution: number;
+  ratio: string;
 }
 
 export interface SeeDanceImageToVideoResponse {
@@ -66,8 +68,19 @@ export async function POST(request: NextRequest) {
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: body.model,
-          content: body.content,
+          model: 'seedance-1-0-pro-250528',
+          content: [
+            {
+              type: 'text',
+              text: `${body.prompt} --resolution ${body.resolution}p --ratio ${body.ratio} `,
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: body.baseImage,
+              },
+            },
+          ],
         }),
       }
     );

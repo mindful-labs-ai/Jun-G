@@ -12,6 +12,7 @@ export interface ImageToVideoRequest {
   negative_prompt?: string; // 부정 프롬프트
   duration?: number; // 비디오 길이 (초)
   cfg_scale?: number; // CFG 스케일
+  ratio?: string; // 소스 비율
 }
 
 export interface KlingImageToVideoResponse {

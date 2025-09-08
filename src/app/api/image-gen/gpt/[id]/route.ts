@@ -9,15 +9,14 @@ const client = new OpenAI({ apiKey: process.env.OPENAI_IMAGE_API_KEY! });
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { prompt, imageUrl } = body;
+    const { prompt, imageUrl, ratio, resolution } = body;
 
     const response = await client.responses.create({
       model: 'gpt-4.1',
       input: [
         {
           role: 'system',
-          content:
-            'Generate A masterpiece Japanese style anime illustration of this reference character',
+          content: `Generate A masterpiece Japanese style anime illustration of this reference character ratio ${ratio} resolution ${resolution}p`,
         },
         {
           role: 'user',

@@ -1,6 +1,6 @@
 export const scenePrompt = (script: string) => `
 [Role]
-You split a short story script into video-ready scenes and craft each scene into an English prompt suitable for image generation. Output MUST be a JSON array only.
+You are famous master director, split a story script into video-ready scenes and craft each scene into an English prompt suitable for image generation. Output MUST be a JSON array only.
 
 [Input]
 - SCRIPT: ${script}

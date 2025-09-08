@@ -106,6 +106,8 @@ export default function VisualPipeline({
   const setImageAiType = useAIConfigStore(config => config.setImageAiType);
   const ratio = useAIConfigStore(config => config.ratio);
   const setRatio = useAIConfigStore(config => config.setRatio);
+  const resolution = useAIConfigStore(config => config.resolution);
+  const setResolution = useAIConfigStore(config => config.setResolution);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [refFile, setRefFile] = useState<{
@@ -299,6 +301,20 @@ export default function VisualPipeline({
                   </Button>
                 )
               )}
+            </div>
+            {/* Resolution */}
+            <div className='inline-flex rounded-full border p-1 bg-card'>
+              {([480, 720] as const).map(r => (
+                <Button
+                  key={r}
+                  size='sm'
+                  variant={resolution === r ? 'default' : 'ghost'}
+                  className='h-7 rounded-full'
+                  onClick={() => setResolution(r)}
+                >
+                  {r}
+                </Button>
+              ))}
             </div>
           </div>
         </div>

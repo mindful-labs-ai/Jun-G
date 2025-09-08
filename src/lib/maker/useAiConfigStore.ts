@@ -52,7 +52,7 @@ type AIConfigActions = {
 
 const DEFAULT: AIConfigState = {
   ratio: '9:16',
-  resolution: 1024,
+  resolution: 720,
   imageAiType: 'gemini',
   clipAiType: 'kling',
   duration: 5,

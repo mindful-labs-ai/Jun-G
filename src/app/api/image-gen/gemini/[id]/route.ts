@@ -14,7 +14,7 @@ type CandidatePart = {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { prompt, imageBase64, imageMimeType } = body;
+    const { prompt, imageBase64, imageMimeType, ratio, resolution } = body;
 
     if (!prompt || !imageBase64 || !imageMimeType) {
       return NextResponse.json(
@@ -24,16 +24,24 @@ export async function POST(request: NextRequest) {
     }
 
     // 사이즈에 대한 계속된 명령을 주되, 실제 리사이즈는 하지 않음
-    const enhancedPrompt = `Generate A masterpiece Japanese style anime illustration 1024x1024 pixel image ${prompt}.`;
+    const enhancedPrompt = `Generate A masterpiece Japanese style anime illustration ${ratio} ratio ${resolution}p resolution pixel image ${prompt}.`;
 
     const result = await genAI
       .getGenerativeModel({ model: 'gemini-2.5-flash-image-preview' })
       .generateContent({
         contents: [
           {
+            role: 'model',
+            parts: [
+              {
+                text: `Generate A masterpiece Japanese style anime illustration`,
+              },
+            ],
+          },
+          {
             role: 'user',
             parts: [
-              { text: enhancedPrompt },
+              { text: prompt },
               {
                 inlineData: {
                   mimeType: imageMimeType,
@@ -44,6 +52,10 @@ export async function POST(request: NextRequest) {
           },
         ],
       });
+
+    console.log(enhancedPrompt);
+
+    console.log(result);
 
     const response = await result.response;
 

@@ -65,6 +65,7 @@ export default function MakerPage() {
   const imageAiType = useAIConfigStore(config => config.imageAiType);
   const clipAiType = useAIConfigStore(config => config.clipAiType);
   const sourceRatio = useAIConfigStore(config => config.ratio);
+  const sourceResolution = useAIConfigStore(config => config.resolution);
 
   // UI/flow state
   const [editingScene, setEditingScene] = useState<string | null>(null);
@@ -531,6 +532,8 @@ export default function MakerPage() {
             prompt,
             imageBase64: uploadedImage?.base64,
             imageMimeType: uploadedImage?.mimeType,
+            ratio: sourceRatio,
+            resolution: sourceResolution,
           };
 
           const res = await fetch(`/api/image-gen/gemini/${sceneId}`, {
@@ -597,7 +600,7 @@ export default function MakerPage() {
 
           console.log(json);
 
-          if (json.output[0].status === 'completed') {
+          if (json.output[0].result) {
             setImagesByScene(prev => {
               const next = new Map(prev);
               next.set(sceneId, {
@@ -628,7 +631,13 @@ export default function MakerPage() {
         }
       }
     },
-    [scenesState.byId, uploadedImage, imageAiType]
+    [
+      scenesState.byId,
+      uploadedImage,
+      imageAiType,
+      sourceRatio,
+      sourceResolution,
+    ]
   );
 
   const startImageQueue = useCallback(
@@ -795,6 +804,7 @@ export default function MakerPage() {
             prompt,
             negative_prompt: null,
             cfg_scale: 0.5,
+            sourceRatio,
           };
 
           const response = await fetch(`/api/kling/clip-gen/${sceneId}`, {
@@ -844,19 +854,10 @@ export default function MakerPage() {
       if (aiType === 'seedance') {
         try {
           const body = {
-            model: 'seedance-1-0-pro-250528',
-            content: [
-              {
-                type: 'text',
-                text: `${prompt} --resolution 720p --ratio ${sourceRatio} `,
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: baseImage,
-                },
-              },
-            ],
+            prompt: prompt,
+            resolution: sourceResolution,
+            ratio: sourceRatio,
+            baseImage: baseImage,
           };
 
           const response = await fetch(`/api/seedance/clip-gen/${sceneId}`, {
@@ -1240,7 +1241,8 @@ export default function MakerPage() {
       />
       <Button
         onClick={() => {
-          console.log(uploadedImage?.dataUrl);
+          console.log(sourceRatio);
+          console.log(sourceResolution);
         }}
       >
         테스트
