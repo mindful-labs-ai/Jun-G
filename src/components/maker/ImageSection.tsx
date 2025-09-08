@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
+import { buildImagePromptText } from '@/lib/maker/imagePromptBuilder';
 import { GeneratedImage, Scene, UploadedImage } from '@/lib/maker/types';
 import { Check, Image as ImageIcon, Loader2, RefreshCw } from 'lucide-react';
 
@@ -62,7 +63,6 @@ export default function ImageSection({
         <div className='space-y-2 max-h-[70vh] overflow-y-auto pr-1'>
           {scenes.map(scene => {
             const image = images.get(scene.id);
-            const clipPrompt = scene.clipPrompt as string | undefined;
 
             const statusChip =
               image?.status === 'pending'
@@ -177,7 +177,7 @@ export default function ImageSection({
                     <div>
                       <h4 className='text-sm font-semibold'>이미지 프롬프트</h4>
                       <p className='mt-1 whitespace-pre-line text-sm text-muted-foreground'>
-                        {scene.imagePrompt}
+                        {buildImagePromptText(scene.imagePrompt)}
                       </p>
                     </div>
 

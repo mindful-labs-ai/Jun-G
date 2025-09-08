@@ -37,6 +37,7 @@ import {
 import { KlingImageToVideoResponse } from '../api/kling/clip-gen/[id]/route';
 import { KlingImageToVideoStatusResponse } from '../api/kling/[id]/route';
 import { useAIConfigStore } from '@/lib/maker/useAiConfigStore';
+import ConfigModal from '@/components/maker/ConfigModal';
 
 type ClipJob = { sceneId: string; aiType: 'kling' | 'seedance' };
 
@@ -62,6 +63,7 @@ export default function MakerPage() {
   );
 
   // ai config state
+  const globalStyle = useAIConfigStore(config => config.globalStyle);
   const imageAiType = useAIConfigStore(config => config.imageAiType);
   const clipAiType = useAIConfigStore(config => config.clipAiType);
   const sourceRatio = useAIConfigStore(config => config.ratio);
@@ -422,28 +424,36 @@ export default function MakerPage() {
       return { ...prev, byId };
     });
 
-  // 프롬프트 편집 반영 (현재 씬)
-  const updateCurrentScenePrompt = (id: string, v: string) => {
-    if (!id) return;
-    setScenesState(prev => {
-      const s = prev.byId.get(id);
-      if (!s) return prev;
-      const byId = new Map(prev.byId);
-      byId.set(id, { ...s, imagePrompt: v });
-      return { ...prev, byId };
-    });
-  };
+  // // 프롬프트 편집 반영 (현재 씬)
+  // const updateCurrentImagePromptJsonUnit = (
+  //   sceneId: string,
+  //   key: string,
+  //   v: string
+  // ) => {
+  //   if (!sceneId) return;
+  //   setScenesState(prev => {
+  //     const s = prev.byId.get(sceneId);
+  //     if (!s) return prev;
+  //     const byId = new Map(prev.byId);
+  //     byId.set(sceneId, { ...s, imagePrompt: { ...s.imagePrompt, [key]: v } });
+  //     return { ...prev, byId };
+  //   });
+  // };
 
-  const updateCurrentClipPrompt = (id: string, v: string) => {
-    if (!id) return;
-    setScenesState(prev => {
-      const s = prev.byId.get(id);
-      if (!s) return prev;
-      const byId = new Map(prev.byId);
-      byId.set(id, { ...s, clipPrompt: v });
-      return { ...prev, byId };
-    });
-  };
+  // const updateCurrentClipPromptJsonUnit = (
+  //   sceneId: string,
+  //   key: string,
+  //   v: string
+  // ) => {
+  //   if (!sceneId) return;
+  //   setScenesState(prev => {
+  //     const s = prev.byId.get(sceneId);
+  //     if (!s) return prev;
+  //     const byId = new Map(prev.byId);
+  //     byId.set(sceneId, { ...s, clipPrompt: { ...s.clipPrompt, [key]: v } });
+  //     return { ...prev, byId };
+  //   });
+  // };
 
   // 현재 씬
   const currentScene = useMemo(
@@ -529,6 +539,7 @@ export default function MakerPage() {
       if (imageAiType === 'gemini') {
         try {
           const body = {
+            globalStyle: globalStyle,
             prompt,
             imageBase64: uploadedImage?.base64,
             imageMimeType: uploadedImage?.mimeType,
@@ -584,6 +595,7 @@ export default function MakerPage() {
       if (imageAiType === 'gpt') {
         try {
           const body = {
+            globalStyle: globalStyle,
             prompt,
             imageUrl: uploadedImage?.dataUrl,
           };
@@ -1239,14 +1251,6 @@ export default function MakerPage() {
         zipDownloading={zipDownloading}
         onZip={handleZipDownload}
       />
-      <Button
-        onClick={() => {
-          console.log(sourceRatio);
-          console.log(sourceResolution);
-        }}
-      >
-        테스트
-      </Button>
 
       <main className='container mx-auto px-4 py-6'>
         <div className='grid grid-cols-1 gap-6 mb-2'>
@@ -1265,7 +1269,6 @@ export default function MakerPage() {
               setCurrentSceneId(id);
             }}
             editingScene={editingScene}
-            updatePrompt={updateCurrentScenePrompt}
             // images
             images={imagesByScene}
             uploadRefImage={setUploadedImage}
@@ -1297,10 +1300,9 @@ export default function MakerPage() {
           <SceneCanvas
             step={step as 0 | 1 | 2}
             scene={currentScene}
+            setScenesState={setScenesState}
             images={imagesByScene}
             clips={clipsByScene}
-            onUpdatePrompt={updateCurrentScenePrompt}
-            onUpdateClipPrompt={updateCurrentClipPrompt}
             onConfirmScene={confirmScene}
             onGenerateImage={handleGenerateImage}
             onConfirmImage={confirmImage}
@@ -1419,6 +1421,7 @@ export default function MakerPage() {
                 <HelpCircle className='w-4 h-4' />
                 도움말
               </Button>
+
               <Button onClick={() => applyScenes(tempScenes)}>
                 장면 임시 만들기
               </Button>
@@ -1451,6 +1454,8 @@ export default function MakerPage() {
         }}
         onSave={saveScriptChange}
       />
+
+      <ConfigModal />
     </div>
   );
 }

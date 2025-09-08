@@ -17,20 +17,26 @@ export interface RefImage {
 }
 
 type AIConfigState = {
+  modalOpen: boolean;
+  globalStyle: string;
   ratio: AspectRatio;
   resolution: number;
   imageAiType: ImageAIType;
   clipAiType: ClipAIType;
   duration: number; // seconds
   refImages: RefImage[];
+  customRule: string;
 };
 
 type AIConfigActions = {
   // 개별 setter
+  setModalOpen: (v: boolean) => void;
+  setGlobalStyle: (v: string) => void;
   setRatio: (v: AspectRatio) => void;
   setResolution: (px: number) => void;
   setImageAiType: (v: ImageAIType) => void;
   setClipAiType: (v: ClipAIType) => void;
+  setCustomRule: (v: string) => void;
   setDuration: (sec: number) => void;
 
   // refImages 조작
@@ -51,12 +57,15 @@ type AIConfigActions = {
 };
 
 const DEFAULT: AIConfigState = {
+  modalOpen: false,
+  globalStyle: 'A masterpiece Japanese style anime illustration',
   ratio: '9:16',
   resolution: 720,
   imageAiType: 'gemini',
   clipAiType: 'kling',
   duration: 5,
   refImages: [],
+  customRule: '',
 };
 
 export const useAIConfigStore = create<AIConfigState & AIConfigActions>()(
@@ -65,10 +74,13 @@ export const useAIConfigStore = create<AIConfigState & AIConfigActions>()(
       ...DEFAULT,
 
       // === setters: 바뀌는 키만 부분 업데이트 ===
+      setModalOpen: v => set({ modalOpen: v }),
+      setGlobalStyle: v => set({ globalStyle: v }),
       setRatio: v => set({ ratio: v }),
       setResolution: px => set({ resolution: px }),
       setImageAiType: v => set({ imageAiType: v }),
       setClipAiType: v => set({ clipAiType: v }),
+      setCustomRule: v => set({ customRule: v }),
       setDuration: sec => set({ duration: sec }),
 
       setRefImages: list => set({ refImages: list }),

@@ -3,6 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { Check, RefreshCw } from 'lucide-react';
 import { Scene } from '../../lib/maker/types';
+import { buildImagePromptText } from '@/lib/maker/imagePromptBuilder';
 
 export default function SceneList({
   scenes,
@@ -79,7 +80,7 @@ export default function SceneList({
                     이미지 프롬프트:
                   </p>
                   <p className='text-sm text-muted-foreground mb-2'>
-                    {scene.imagePrompt}
+                    {buildImagePromptText(scene.imagePrompt)}
                   </p>
                   <p className='text-xs text-muted-foreground mb-1'>
                     한글 요약:

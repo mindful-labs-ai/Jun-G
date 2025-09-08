@@ -4,22 +4,23 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Check, RefreshCw, ImageIcon } from 'lucide-react';
-import TextareaAutoSize from 'react-textarea-autosize';
 import type {
   Scene,
   GeneratedImage,
   GeneratedClip,
+  ScenesState,
 } from '../../lib/maker/types';
+import ClipPromptEditor from './ClipPromptEditor';
+import ImagePromptEditor from './ImagePromptEditor';
 
 type Step = 0 | 1 | 2;
 
 type Props = {
   step: Step; // 0: scenes, 1: images, 2: clips
   scene: Scene | null;
+  setScenesState: React.Dispatch<React.SetStateAction<ScenesState>>;
   images: Map<string, GeneratedImage>;
   clips: Map<string, GeneratedClip>;
-  onUpdatePrompt: (id: string, v: string) => void;
-  onUpdateClipPrompt: (id: string, v: string) => void;
   onConfirmScene?: (id: string) => void;
   onGenerateImage?: (sceneId: string) => void;
   onConfirmImage?: (imageId: string) => void;
@@ -33,10 +34,9 @@ type Props = {
 export default function SceneCanvas({
   step,
   scene,
+  setScenesState,
   images,
   clips,
-  onUpdatePrompt,
-  onUpdateClipPrompt,
   onConfirmScene,
   onGenerateImage,
   onConfirmImage,
@@ -74,16 +74,19 @@ export default function SceneCanvas({
             <div className='text-xs text-muted-foreground mb-2'>
               {step === 2 ? 'ClipPrompt' : 'ImagePrompt'}
             </div>
-            <TextareaAutoSize
-              className='min-h-[220px] w-full disabled:text-black disabled:cursor-not-allowed resize-none rounded-lg break-keep'
-              value={step === 2 ? scene.clipPrompt : scene.imagePrompt}
-              onChange={e => {
-                step === 2
-                  ? onUpdateClipPrompt(scene.id, e.target.value)
-                  : onUpdatePrompt(scene.id, e.target.value);
-              }}
-              disabled={scene.confirmed}
-            />
+            {step === 1 ? (
+              <ImagePromptEditor
+                imagePrompt={scene.imagePrompt}
+                sceneId={scene.id}
+                setScenesState={setScenesState}
+              />
+            ) : (
+              <ClipPromptEditor
+                clipPrompt={scene.clipPrompt}
+                sceneId={scene.id}
+                setScenesState={setScenesState}
+              />
+            )}
             <div className='mt-2 flex items-center gap-2'>
               <Button
                 size='sm'

@@ -1,93 +1,136 @@
-export const scenePrompt = (script: string) => `
+export const scenePrompt = (script: string, customRule: string) => `
 [Role]
-You are famous master director, split a story script into video-ready scenes and craft each scene into an English prompt suitable for image generation. Output MUST be a JSON array only.
+You are a master director. Split the SCRIPT into video-ready scenes and, for each scene, fill the structured fields to directly generate a still image and a short clip.
+Return **ONLY** a JSON array (no prose, no markdown).
 
 [Input]
 - SCRIPT: ${script}
 
-[Output format (JSON array only)]
+[Output format — JSON array only]
 [
   {
     "id": "scene-1",
-    "originalText": "<Insert the exact original script text for this scene (verbatim).>",
-    "englishPrompt": "<Technical, image-generation prompt in English. Must literally include the words 'this character'.>",
-    "sceneExplain": "<In Korean, 1–2 sentences that describe the scene’s narrative intent/emotion/role (no technical terms).>",
-    "koreanSummary": "<In Korean, a concise summary of the englishPrompt’s visual/technical elements (shot/lens/lighting/background/composition/how this character appears).>",
-    "imagePrompt": "<One-line English prompt that MERGES the technical description from englishPrompt with the narrative intent of sceneExplain, phrased for image generation. Must literally include 'this character'. End with: No text, no logos, no watermarks. Keep the art style of this character and the background consistent.>",
-    "clipPrompt": "<One-line English motion prompt for turning the image into a short video: describe subtle, realistic motion (camera push-in/pan, gentle handheld sway, parallax; micro-movements like this character blinking, hair/breath, fabric ripple; environmental motion like rain/drizzle, steam, light flicker). Must literally include 'this character'. Do NOT introduce new objects or text. No size/aspect/resolution numbers. No logos/watermarks.>",
+    "originalText": "<Verbatim, contiguous excerpt from SCRIPT (no paraphrase).>",
+    "englishPrompt": "<One compact technical description in English that literally contains 'this character'. No sizes/aspect ratios.>",
+    "sceneExplain": "<Korean, 1–2 sentences describing intent/emotion/role. No tech terms.>",
+    "koreanSummary": "<Korean, concise summary of the visual/technical aspects implied by englishPrompt (shot/lens/light/background/composition/how this character appears).>",
+
+    "imagePrompt": {
+      "intent": "<Scene purpose & dominant emotion in ≤12 words>",
+      "img_style": "<Single global visual style. Keep consistent with any given reference. No readable text/logos/watermarks.>",
+      "camera": {
+        "shot_type": "<close-up | medium | long (pick one)>",
+        "angle": "<camera angle/tilt relative to subject; keep stable unless intent requires change>",
+        "focal_length": "<single lens value in mm, e.g., '50mm'>"
+      },
+      "subject": {
+        "pose": "<concise body/upper-body pose & orientation>",
+        "expression": "<one clear facial emotion>",
+        "gaze": "<toward camera | off-screen (left/right) | down | up>",
+        "hands": "<hand position/gesture and any object held>"
+      },
+      "lighting": {
+        "key": "<key-light direction & intensity; add fill/back if needed>",
+        "mood": "<color temperature + overall mood, e.g., 'cool, soft'>"
+      },
+      "background": {
+        "location": "<generic, brand-free setting>",
+        "dof": "<shallow | medium | deep>",
+        "props": "<only essential props; no brands/readable text>",
+        "time": "<dawn | morning | noon | sunset | evening | night>"
+      }
+    },
+
+    "clipPrompt": {
+      "intent": "<Clip goal & feeling in ≤12 words>",
+      "img_message": "<What the base still conveys, one short sentence>",
+      "background": {
+        "location": "<same as still unless intent requires change>",
+        "props": "<props visible in still or logically consistent>",
+        "time": "<same as still unless specified>"
+      },
+      "camera_motion": {
+        "type": "<push-in | pan | tilt | handheld sway | none>",
+        "easing": "<linear | ease-in | ease-out | ease-in-out>"
+      },
+      "subject_motion": [
+        { "time": "0.5s", "action": "<one concise micro-movement of this character>" }
+      ],
+      "environment_motion": [
+        { "type": "<lighting | atmosphere | background | particles | props>", "action": "<subtle, physically plausible change>" }
+      ]
+    },
+
     "confirmed": false
-  },
-  ...
+  }
 ]
 
+[User Overrides — Highest Priority]
+- If provided, these directives OVERRIDE any conflicting rules below.
+- Safety still applies (no brands/readable text/watermarks).
+- If a required value is missing, fall back to defaults.
+- If per-scene overrides exceed the scene count, ignore extras.
+
+[USER_OVERRIDES_TEXT]
+{${customRule}}   ← (선택) 유저 자연어 지시문
+
+
+[Priority Hierarchy]
+1) User Overrides (Text/JSON) > 2) Prohibitions/Safety > 3) Validation checklist > 4) Diversity rules > 5) Defaults
+
 [Segmentation rules]
-1) Split by **semantic beats**, not sentence boundaries. If meaning shifts inside a single sentence, split it.
-2) Start a new scene when any of the following changes occur:
-   - **Action/attention** change of **this character** (gaze, hand movement, gesture, posture)
-   - **Emotion/intent/tone** shift (e.g., anxiety → resolve, calm → panic)
-   - **Viewpoint/POV** or implied **camera intent** change (frontal → over-the-shoulder; observational → subjective)
-   - **Time/causal/transition** signals (“then / suddenly / soon / eventually / however / but / therefore”)
-   - **Contrastive/turning conjunctions** that split independent meanings (“, and / , but / —” segments)
-   - **Quotation/dialogue/inner monologue** starts or ends
-3) "originalText" must be a **verbatim, contiguous span** from the SCRIPT (no paraphrase; do not merge non-contiguous spans).
-4) Keep one scene to **1–3 short clauses** (≈5–35 words).
-   - Very small fragments (<5 words) should be **merged** with an adjacent scene of the same meaning.
-   - If a single sentence contains **multiple actions/meanings**, **split** them.
-5) For lists/enumerations, prefer **“one item = one scene”**, unless items are trivial—then group them.
-6) "id" increments from **"scene-1"** and **preserves source order**.
+1) Split by **semantic beats**, not sentence boundaries. If meaning shifts inside one sentence, split it.
+2) Start a new scene when any of these change:
+   - **Action/attention** of **this character** (gaze/gesture/posture/hand)
+   - **Emotion/intent/tone** (e.g., calm → anxious)
+   - **Viewpoint/POV** or implied **camera intent**
+   - **Time/causal/transition** signals (“then/suddenly/however/therefore…”)
+   - **Quotation/inner monologue** starts or ends
+3) "originalText" = **verbatim, contiguous** span from SCRIPT (no paraphrase; do not merge non-contiguous spans).
+4) Keep one scene to **1–3 short clauses** (~5–35 words). Merge fragments <5 words with a neighboring scene of the same meaning.
+5) For lists, prefer **one item = one scene**, unless trivial.
 
-[englishPrompt guidelines — technical (CRITICAL)]
-- Every scene must literally include the words **"this character"**.
-- Do NOT include image size/resolution/aspect-ratio (e.g., 9:16, 1024×1024, 4K, UHD).
-- Explicitly include:
-  1) **Camera**: shot type (close-up/medium/over-the-shoulder/top-down…), **lens (mm)**, **aperture (f/ value)**, **camera height/angle**
-  2) **Subject**: explicitly tie to **this character** (e.g., “this character’s hands”, “this character holding a phone”, “POV of this character”)
-  3) **Lighting**: key/fill/back, color (warm/cool), direction (left/right/back), mood (soft/hard/moody)
-  4) **Background**: location/material/bokeh/DOF (shallow/deep), props (no brands/readable text)
-  5) **Composition**: rule of thirds/negative space/split-screen, etc.
-  6) **Prohibitions**: **No text, no logos, no watermarks.**
-- Tone & mood: visually imply the script’s emotion (anxiety, contemplation, hope, etc.).
-- Example phrasing:
-  - “Cinematic close-up (85mm, f/1.8) of this character …”
-  - “Top-down 35mm POV of this character’s phone …”
-  - “Macro 100mm of this character’s hands …”
-  - “Split-screen with this character on the right …”
+[Global diversity & anti-duplication rules]
+- Close-up quota: Keep **close-up** shots to **≤ 25%** of all scenes.
+- Shot variety: Across the array, mix **close/medium/long**; for **angle**, include **≥ 3 distinct types** overall (e.g., eye-level / low / high / over-the-shoulder / POV / profile).
+- Lens variety: Do **not** reuse the same **focal_length** in adjacent scenes (e.g., rotate 35mm → 50mm → 85mm).
+- Composition variety: Avoid repeating the same framing (front / three-quarter / side), subject placement (center / off-center), and **dof** across adjacent scenes.
+- Anti-duplication: If the following **Scene Signature** matches or is near-duplicate, **merge** or **alter** the scene:
+  Scene Signature = { originalText(core meaning) + imagePrompt.camera.shot_type + imagePrompt.camera.angle + imagePrompt.subject.pose + imagePrompt.background.location }.
+- Near-duplicate check: If two adjacent scenes share {shot_type, angle, location}, change at least one of:
+  **subject.pose**, **camera.angle/shot_type/focal_length**, or **lighting.direction** to differentiate.
+- Window balance: In every **block of 4 scenes**, ensure at least one **long**, one **medium**, and one **close** shot appear.
 
-[sceneExplain guidelines — narrative (Korean)]
-- Write in **Korean**, 1–2 sentences.
-- Explain the scene’s intent/emotion/narrative role (e.g., opening that recognizes anxiety in a happy moment).
-- No camera/tech terms. No new story beyond the original script.
+[Population rules — map to the JSON fields]
+- **englishPrompt**: single compact line in English; must literally include **"this character"**; no sizes/aspect ratios/resolution.
+- **imagePrompt.subject**: write actions/appearance so the subject clearly refers to **"this character"** (the literal phrase must appear at least once in subject/pose/hands/gaze or in englishPrompt).
+- **imagePrompt.img_style / background.props**: strictly brand-free; no readable UI text/logos/watermarks anywhere.
+- **imagePrompt.camera.focal_length**: one value in mm (e.g., "50mm"); infer DOF via **background.dof**.
+- **Variety hooks**: Prefer changing **shot_type / angle / focal_length / subject.pose / lighting.key** between adjacent scenes to avoid repetition.
+- **clipPrompt.subject_motion**: provide **2–4** entries total; ascending **time** strings (e.g., "0.0s", "1.2s"); each **action** references **"this character"** with subtle, realistic micro-movements (blink, breath, hair/fabric ripple, small glance/shift).
+- **camera_motion**: pick **one** clear type; pair with an **easing** curve.
+- **environment_motion**: **0–2** subtle items max; physically plausible; consistent with still (e.g., light flicker, gentle steam, screen glow, dust motes).
 
-[koreanSummary guidelines — technical summary (Korean)]
-- In **Korean**, concisely summarize key visual/technical elements of englishPrompt (shot/lens/lighting/background/composition/how this character appears).
-- This is not a story summary; it’s a prompt-structure summary.
-
-[imagePrompt guidelines — combined, one-line (English)]
-- **One line only**, in **English**.
-- Merge the **technical description** from englishPrompt with the **narrative intent** from sceneExplain (translate/compress the intent into English).
-- Must literally include **"this character"**.
-- Do NOT add size/resolution/aspect ratio.
-- Start with the technical composition; then append a short clause that conveys the intent/emotion (e.g., “— conveying a fleeting joy tinged with anxiety”).
-- End with: **No text, no logos, no watermarks. Keep the art style of this character and the background consistent.**
-
-[clipPrompt guidelines — motion (English, one line)]
-- **One line only**, in **English**.
-- Describe natural motion to animate the still: camera movement (slow push-in/pan/tilt/handheld sway), subject micro-movements (this character blinking, breathing, hair sway), and/or environmental motion (subtle rain, steam, ripples, neon flicker).
-- Must literally include **"this character"**.
-- Keep consistent with the still image; do NOT introduce new objects, locations, or readable text.
-- No size/aspect/resolution numbers, no timestamps/durations, no logos/watermarks.
+[Prohibitions]
+- No sizes, aspect ratios, pixel counts, 4K/UHD labels.
+- No brand names, readable text, watermarks.
+- Do not introduce new objects/locations contradictory to the still.
 
 [Validation checklist]
-- Did you output **only** the JSON array? (No extra prose/markdown.)
-- Does each object contain exactly these 8 fields?
+- Output **only** the JSON array.
+- Each scene object includes exactly these fields:
   id, originalText, englishPrompt, sceneExplain, koreanSummary, imagePrompt, clipPrompt, confirmed
-- Do **englishPrompt**, **imagePrompt**, and **clipPrompt** all literally include **"this character"**?
-- No size/resolution/aspect-ratio numbers anywhere.
-- No brand names/readable UI text/watermarks.
-- "imagePrompt" ends with: “No text, no logos, no watermarks. Keep the art style of this character and the background consistent.”
-- "originalText" is verbatim from the script; "sceneExplain" and "koreanSummary" follow their roles.
+- **"this character"** appears in **englishPrompt** and within **imagePrompt.subject** or **clipPrompt.subject_motion.action**.
+- Background/props are brand-free and contain **no readable text**.
+- Times in **subject_motion** are ascending strings with "s" suffix.
+- **Diversity checks**:
+  • Close-up shots ≤ 25% overall  
+  • In every 4-scene window, at least one long + one medium + one close  
+  • ≥ 3 distinct **angles** used across the array  
+  • No adjacent repetition of {shot_type, angle, focal_length} without variation  
+  • No Scene Signature duplicates (merged or differentiated)
 
 [Execution]
-- Strictly follow the rules above, split the SCRIPT, and output a JSON array only.
-- Output nothing except the JSON array.
+- Follow the structure exactly.
+- Return the JSON array and nothing else.
 `;

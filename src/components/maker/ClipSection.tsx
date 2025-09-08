@@ -11,6 +11,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { useAIConfigStore } from '@/lib/maker/useAiConfigStore';
+import { buildClipPromptText } from '@/lib/maker/clipPromptBuilder';
 
 export default function ClipSection({
   scenes,
@@ -256,7 +257,7 @@ export default function ClipSection({
                     <div>
                       <h4 className='text-sm font-semibold'>클립 프롬프트</h4>
                       <p className='mt-1 whitespace-pre-line text-sm text-muted-foreground'>
-                        {scene.clipPrompt}
+                        {buildClipPromptText(scene.clipPrompt)}
                       </p>
                     </div>
 
