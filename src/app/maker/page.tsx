@@ -446,7 +446,8 @@ export default function MakerPage() {
 
   // 현재 씬
   const currentScene = useMemo(
-    () => (currentSceneId ? scenesState.byId.get(currentSceneId) : null),
+    () =>
+      currentSceneId ? scenesState.byId.get(currentSceneId) ?? null : null,
     [scenesState, currentSceneId]
   );
 
