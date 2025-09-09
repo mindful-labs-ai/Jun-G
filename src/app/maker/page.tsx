@@ -38,6 +38,7 @@ import { KlingImageToVideoResponse } from '../api/kling/clip-gen/[id]/route';
 import { KlingImageToVideoStatusResponse } from '../api/kling/[id]/route';
 import { useAIConfigStore } from '@/lib/maker/useAiConfigStore';
 import ConfigModal from '@/components/maker/ConfigModal';
+import { buildClipPromptText } from '@/lib/maker/clipPromptBuilder';
 
 type ClipJob = { sceneId: string; aiType: 'kling' | 'seedance' };
 
@@ -808,6 +809,8 @@ export default function MakerPage() {
 
       const prompt = scenesState.byId.get(sceneId)?.clipPrompt;
 
+      if (!prompt) return notify('프롬프트가 비었습니다.');
+
       // kling 요청 보내기
       if (aiType === 'kling') {
         try {
@@ -867,10 +870,11 @@ export default function MakerPage() {
       if (aiType === 'seedance') {
         try {
           const body = {
-            prompt: prompt,
+            prompt: buildClipPromptText(prompt),
             resolution: sourceResolution,
             ratio: sourceRatio,
             baseImage: baseImage,
+            characterSheet: uploadedImage?.dataUrl,
           };
 
           const response = await fetch(`/api/seedance/clip-gen/${sceneId}`, {
@@ -881,9 +885,9 @@ export default function MakerPage() {
 
           console.log(body);
 
-          if (!response.ok) throw new Error('이미지 생성 실패');
-
           const json = (await response.json()) as SeeDanceImageToVideoResponse;
+
+          if (!json.id) throw new Error('이미지 생성 실패');
 
           console.log(json);
 

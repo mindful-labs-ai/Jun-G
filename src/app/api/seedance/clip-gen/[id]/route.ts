@@ -23,6 +23,7 @@ export interface ImageToVideoRequest {
   baseImage: string;
   resolution: number;
   ratio: string;
+  characterSheet: string;
 }
 
 export interface SeeDanceImageToVideoResponse {
@@ -72,13 +73,14 @@ export async function POST(request: NextRequest) {
           content: [
             {
               type: 'text',
-              text: `${body.prompt} --resolution ${body.resolution}p --ratio ${body.ratio} `,
+              text: `${body.prompt} --resolution ${body.resolution}p --ratio ${body.ratio}`,
             },
             {
               type: 'image_url',
               image_url: {
                 url: body.baseImage,
               },
+              role: 'first_frame',
             },
           ],
         }),
