@@ -63,6 +63,7 @@ export default function MakerPage() {
   );
 
   // ai config state
+  const customRule = useAIConfigStore(config => config.customRule);
   const globalStyle = useAIConfigStore(config => config.globalStyle);
   const imageAiType = useAIConfigStore(config => config.imageAiType);
   const clipAiType = useAIConfigStore(config => config.clipAiType);
@@ -477,7 +478,7 @@ export default function MakerPage() {
       const res = await fetch('/api/scenes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ script }),
+        body: JSON.stringify({ script, customRule }),
       });
       if (!res.ok) {
         const { error } = await res.json();

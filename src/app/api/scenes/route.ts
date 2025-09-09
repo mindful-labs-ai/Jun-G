@@ -9,14 +9,14 @@ const client = new OpenAI({ apiKey: process.env.OPENAI_SCRIPT_API_KEY! });
 
 export async function POST(req: NextRequest) {
   try {
-    const { script } = await req.json();
+    const { script, customRule } = await req.json();
     if (!script || !script.trim()) {
       return Response.json({ error: 'script is required' }, { status: 400 });
     }
 
     const response = await client.responses.create({
       model: 'gpt-4.1',
-      input: scenePrompt(script),
+      input: scenePrompt(script, customRule),
       //todo : 고정 프롬프트 추가 가능
     });
 
