@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       imageMimeType,
       ratio,
       resolution,
-      additionImage,
+      additions,
     } = body;
 
     if (!prompt || !imageBase64 || !imageMimeType) {
@@ -31,29 +31,58 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const inputBody = [
-      {
-        role: 'model',
-        parts: [
+    const inputBody = !!additions
+      ? [
           {
-            text: `Generate ${globalStyle} with this reference image ${ratio} ratio ${resolution}p resolution pixel image`,
+            role: 'model',
+            parts: [
+              {
+                text: `Generate ${globalStyle} with this reference image ${ratio} ratio ${resolution}p resolution pixel image`,
+              },
+            ],
           },
-        ],
-      },
-      {
-        role: 'user',
-        parts: [
-          { text: JSON.stringify(prompt) },
           {
-            inlineData: {
-              mimeType: imageMimeType,
-              data: imageBase64,
-            },
+            role: 'user',
+            parts: [
+              { text: JSON.stringify(prompt) },
+              {
+                inlineData: {
+                  mimeType: imageMimeType,
+                  data: imageBase64,
+                },
+              },
+            ],
           },
-        ],
-      },
-      additionImage,
-    ];
+          ...additions?.map(a => ({
+            role: 'user',
+            parts: [
+              ...(a.caption ? [{ text: a.caption }] : []),
+              { inlineData: a.inlineData },
+            ],
+          })),
+        ]
+      : [
+          {
+            role: 'model',
+            parts: [
+              {
+                text: `Generate ${globalStyle} with this reference image ${ratio} ratio ${resolution}p resolution pixel image`,
+              },
+            ],
+          },
+          {
+            role: 'user',
+            parts: [
+              { text: JSON.stringify(prompt) },
+              {
+                inlineData: {
+                  mimeType: imageMimeType,
+                  data: imageBase64,
+                },
+              },
+            ],
+          },
+        ];
 
     console.log(inputBody);
 

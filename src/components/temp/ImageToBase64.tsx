@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import {
   Upload,
   Loader2,
@@ -10,14 +11,19 @@ import {
   X,
   FileImage,
   Sparkles,
+  Star,
 } from 'lucide-react';
-import { Input } from '../ui/input';
+import { notify } from '@/lib/maker/utils';
 
-interface UploadedImage {
+interface ImageAsset {
+  id: string;
   name: string;
-  base64: string;
-  dataUrl: string;
   mimeType: string;
+  size: number;
+  dataUrl: string;
+  base64: string;
+  caption?: string;
+  isPrimary?: boolean;
 }
 
 interface GeneratedImage {
@@ -26,362 +32,229 @@ interface GeneratedImage {
 }
 
 export function GeminiImageWithUpload() {
-  const [uploadedImage, setUploadedImage] = useState<UploadedImage | null>(
-    null
-  );
-  const [uploadedAddImage, setUploadedAddImage] =
-    useState<UploadedImage | null>(null);
-  const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
+  const [assets, setAssets] = useState<ImageAsset[]>([]);
   const [prompt, setPrompt] = useState('');
-  const [additionImageExplain, setAdditionImageExplain] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const fileAddInputRef = useRef<HTMLInputElement>(null);
 
-  // 파일을 Base64로 변환
-  const fileToBase64 = (file: File): Promise<UploadedImage> => {
+  const primary = useMemo(
+    () => assets.find(a => a.isPrimary) || assets[0],
+    [assets]
+  );
+  const additions = useMemo(
+    () => assets.filter(a => primary && a.id !== primary.id),
+    [assets, primary]
+  );
+
+  const fileToBase64 = (
+    file: File
+  ): Promise<{ base64: string; dataUrl: string }> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-
       reader.onload = () => {
         const dataUrl = reader.result as string;
-        const base64 = dataUrl.split(',')[1];
-
-        resolve({
-          name: file.name,
-          base64,
-          dataUrl,
-          mimeType: file.type,
-        });
+        const base64 = dataUrl.split(',')[1] || '';
+        resolve({ base64, dataUrl });
       };
-
-      reader.onerror = reject;
+      reader.onerror = () => reject(new Error('파일을 읽을 수 없습니다.'));
       reader.readAsDataURL(file);
     });
   };
 
-  // 파일 처리
-  const processFile = async (file: File) => {
-    if (!file.type.startsWith('image/')) {
+  const addFiles = async (files: FileList | File[]) => {
+    const list = Array.from(files).filter(f => f.type.startsWith('image/'));
+    if (list.length === 0) {
       setError('이미지 파일만 업로드 가능합니다.');
       return;
     }
+    setError(null);
 
-    try {
-      const convertedImage = await fileToBase64(file);
-      setUploadedImage(convertedImage);
-      setError(null);
-    } catch (err) {
-      setError('이미지 변환 실패');
-    }
-  };
+    const results = await Promise.all(
+      list.map(async file => {
+        const { base64, dataUrl } = await fileToBase64(file);
+        return {
+          id: crypto.randomUUID(),
+          name: file.name,
+          mimeType: file.type,
+          size: file.size,
+          dataUrl,
+          base64,
+          caption: '',
+          isPrimary: false,
+        } as ImageAsset;
+      })
+    );
 
-  const processAddFile = async (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      setError('이미지 파일만 업로드 가능합니다.');
-      return;
-    }
-
-    try {
-      const convertedImage = await fileToBase64(file);
-      setUploadedAddImage(convertedImage);
-      setError(null);
-    } catch (err) {
-      setError('이미지 변환 실패');
-    }
-  };
-
-  // 드래그 앤 드롭 핸들러
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
+    setAssets(prev => {
+      const next = [...prev, ...results];
+      if (!next.some(a => a.isPrimary) && next.length > 0) {
+        next[0].isPrimary = true;
+      }
+      return [...next];
+    });
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragActive(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      processFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      addFiles(e.dataTransfer.files);
     }
   };
 
-  const handleAddDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
+  const handleClickUpload = () => fileInputRef.current?.click();
 
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      processAddFile(e.dataTransfer.files[0]);
-    }
-  };
-
-  // 파일 선택 핸들러
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      processFile(e.target.files[0]);
-    }
-  };
-
-  const handleAddFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      processAddFile(e.target.files[0]);
-    }
-  };
-
-  // Gemini API 호출
-  const generateWithGemini = async () => {
-    if (!uploadedImage || !prompt.trim()) {
-      setError('이미지와 프롬프트를 모두 입력해주세요.');
-      return;
-    }
-
-    setIsGenerating(true);
-    setError(null);
-
-    try {
-      const response = await fetch('/api/image-gen/gemini/scene-1', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          prompt: prompt,
-          imageBase64: uploadedImage.base64,
-          imageMimeType: uploadedImage.mimeType,
-          additionImage: {
-            role: 'user',
-            parts: [
-              { text: additionImageExplain },
-              {
-                inlineData: {
-                  mimeType: uploadedAddImage?.mimeType,
-                  data: uploadedAddImage?.base64,
-                },
-              },
-            ],
-          },
-        }),
-      });
-
-      console.log({
-        prompt: prompt,
-        imageBase64: uploadedImage.base64,
-        imageMimeType: uploadedImage.mimeType,
-      });
-
-      if (!response.ok) {
-        console.log('에러남');
-        throw new Error('이미지 생성 실패');
+  const removeAsset = (id: string) => {
+    setAssets(prev => {
+      const next = prev.filter(a => a.id !== id);
+      if (!next.some(a => a.isPrimary) && next.length > 0) {
+        next[0].isPrimary = true;
       }
+      return next;
+    });
+  };
 
-      const data = await response.json();
+  const setPrimaryAsset = (id: string) => {
+    setAssets(prev => prev.map(a => ({ ...a, isPrimary: a.id === id })));
+  };
 
-      console.log(data);
+  const setCaption = (id: string, caption: string) => {
+    setAssets(prev => prev.map(a => (a.id === id ? { ...a, caption } : a)));
+  };
+
+  const resetAll = () => {
+    setAssets([]);
+    setPrompt('');
+    setError(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const buildPayload = () => {
+    if (!primary) throw new Error('최소 1장의 참조 이미지가 필요합니다.');
+    const payload = {
+      prompt,
+      imageBase64: primary.base64,
+      imageMimeType: primary.mimeType,
+      additions: additions.map(a => ({
+        caption: a.caption || '',
+        inlineData: { mimeType: a.mimeType, data: a.base64 },
+      })),
+    };
+    return payload;
+  };
+
+  const generateWithGemini = async () => {
+    try {
+      if (!prompt.trim()) {
+        setError('프롬프트를 입력하세요.');
+        return;
+      }
+      if (!primary) {
+        setError('최소 1장의 참조 이미지가 필요합니다.');
+        return;
+      }
+      setIsGenerating(true);
+      setError(null);
+
+      const payload = buildPayload();
+
+      const res = await fetch('/api/image-gen/gemini/scene-1', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error('이미지 생성 실패');
+
+      const data = await res.json();
+
+      if (data.success === 'false') {
+        notify('이미지 생성에 실패하셨습니다. 프롬프트를 더 다듬어주세요.');
+        return;
+      }
 
       if (data.generatedImage) {
-        setGeneratedImages(prev => {
-          return [
-            ...prev,
-            {
-              dataUrl: `data:image/png;base64,${data.generatedImage}`,
-              timestamp: new Date(),
-            },
-          ];
-        });
+        setGeneratedImages(prev => [
+          ...prev,
+          {
+            dataUrl: `data:image/png;base64,${data.generatedImage}`,
+            timestamp: new Date(),
+          },
+        ]);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '알 수 없는 오류');
+    } catch (err: any) {
+      setError(err?.message || '알 수 없는 오류');
     } finally {
       setIsGenerating(false);
     }
   };
 
-  // 이미지 다운로드
-  const downloadImage = (dataUrl: string, index: number) => {
-    const link = document.createElement('a');
-    link.href = dataUrl;
-    link.download = `gemini-generated-${index + 1}.png`;
-    link.click();
-  };
+  const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
 
-  // 초기화
-  const reset = () => {
-    setUploadedImage(null);
-    setGeneratedImages([]);
-    setPrompt('');
-    setError(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+  const downloadImage = (dataUrl: string, index: number) => {
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `gemini-generated-${index + 1}.png`;
+    a.click();
   };
 
   return (
     <div className='w-full max-w-6xl mx-auto p-6 space-y-6'>
       <div className='grid md:grid-cols-2 gap-6'>
-        {/* 왼쪽: 업로드 섹션 */}
+        {/* Left: drop zone + list */}
         <div className='space-y-4'>
           <h3 className='text-lg font-semibold'>
-            1. 참조 이미지 업로드 (필수)
+            1. 참조 이미지 업로드 (여러 장 가능)
           </h3>
+          <div
+            className='relative border-2 border-dashed rounded-lg p-8 text-center transition-colors border-gray-300 dark:border-gray-600'
+            onDragOver={e => {
+              e.preventDefault();
+            }}
+            onDrop={handleDrop}
+          >
+            <input
+              ref={fileInputRef}
+              type='file'
+              accept='image/*'
+              multiple
+              className='hidden'
+              onChange={e => e.target.files && addFiles(e.target.files)}
+            />
 
-          {!uploadedImage ? (
-            <div
-              className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                dragActive
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                  : 'border-gray-300 dark:border-gray-600'
-              }`}
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
-            >
-              <input
-                ref={fileInputRef}
-                type='file'
-                accept='image/*'
-                onChange={handleFileInput}
-                className='hidden'
-              />
-
-              <FileImage className='mx-auto h-12 w-12 text-gray-400 mb-4' />
-
-              <p className='text-sm mb-4'>
-                이미지를 드래그하거나 클릭하여 업로드
-              </p>
-
-              <Button
-                onClick={() => fileInputRef.current?.click()}
-                variant='outline'
-              >
-                <Upload className='mr-2 h-4 w-4' />
-                이미지 선택
-              </Button>
-            </div>
-          ) : (
-            <div className='space-y-3'>
-              <div className='relative'>
-                <img
-                  src={uploadedImage.dataUrl}
-                  alt='Uploaded'
-                  className='w-full rounded-lg border'
-                />
-                <Button
-                  variant='destructive'
-                  size='sm'
-                  className='absolute top-2 right-2'
-                  onClick={() => setUploadedImage(null)}
-                >
-                  <X className='h-4 w-4' />
-                </Button>
-              </div>
-              <p className='text-sm text-gray-500'>
-                파일명: {uploadedImage.name}
-              </p>
-            </div>
-          )}
+            <FileImage className='mx-auto h-12 w-12 text-gray-400 mb-4' />
+            <p className='text-sm mb-4'>
+              이미지를 드래그하거나 클릭하여 여러 장 업로드
+            </p>
+            <Button variant='outline' onClick={handleClickUpload}>
+              <Upload className='mr-2 h-4 w-4' /> 이미지 선택
+            </Button>
+          </div>
         </div>
+
+        {/* Right: prompt + generate */}
         <div className='space-y-4'>
-          <h3 className='text-lg font-semibold'>
-            1-1. 추가 참조 이미지 업로드
-          </h3>
-
-          {!uploadedAddImage ? (
-            <div
-              className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                dragActive
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                  : 'border-gray-300 dark:border-gray-600'
-              }`}
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleAddDrop}
-            >
-              <input
-                ref={fileAddInputRef}
-                type='file'
-                accept='image/*'
-                onChange={handleAddFileInput}
-                className='hidden'
-              />
-
-              <FileImage className='mx-auto h-12 w-12 text-gray-400 mb-4' />
-
-              <p className='text-sm mb-4'>
-                이미지를 드래그하거나 클릭하여 업로드
-              </p>
-
-              <Button
-                onClick={() => fileAddInputRef.current?.click()}
-                variant='outline'
-              >
-                <Upload className='mr-2 h-4 w-4' />
-                이미지 선택
-              </Button>
-            </div>
-          ) : (
-            <div className='space-y-3'>
-              <div className='relative'>
-                <img
-                  src={uploadedAddImage.dataUrl}
-                  alt='Uploaded'
-                  className='w-full rounded-lg border'
-                />
-                <Button
-                  variant='destructive'
-                  size='sm'
-                  className='absolute top-2 right-2'
-                  onClick={() => setUploadedAddImage(null)}
-                >
-                  <X className='h-4 w-4' />
-                </Button>
-              </div>
-              <Input
-                onChange={e => setAdditionImageExplain(e.target.value)}
-                placeholder='이 이미지를 설명해주세요.'
-              />
-              <p className='text-sm text-gray-500'>
-                파일명: {uploadedAddImage.name}
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* 프롬프트 섹션 */}
-        <div className='space-y-4 col-span-2'>
           <h3 className='text-lg font-semibold'>2. 생성 프롬프트 입력</h3>
-
           <Textarea
-            placeholder='예: Create a picture of my cat eating a nano-banana in a fancy restaurant under the Gemini constellation'
+            placeholder='예: Reference 스타일을 유지하고, 스프라이트 시트 지침에 따라 장면을 생성'
             value={prompt}
             onChange={e => setPrompt(e.target.value)}
-            className='min-h-[150px]'
+            className='min-h-[180px]'
           />
 
           <Button
-            onClick={generateWithGemini}
-            disabled={!uploadedImage || !prompt.trim() || isGenerating}
             className='w-full'
+            onClick={generateWithGemini}
+            disabled={isGenerating || assets.length === 0 || !prompt.trim()}
           >
             {isGenerating ? (
               <>
-                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                생성 중...
+                <Loader2 className='mr-2 h-4 w-4 animate-spin' /> 생성 중...
               </>
             ) : (
               <>
-                <Sparkles className='mr-2 h-4 w-4' />
-                Gemini로 이미지 생성
+                <Sparkles className='mr-2 h-4 w-4' /> Gemini로 이미지 생성
               </>
             )}
           </Button>
@@ -394,35 +267,78 @@ export function GeminiImageWithUpload() {
         </div>
       </div>
 
-      {/* 생성된 이미지 섹션 */}
+      {assets.length > 0 && (
+        <div className='space-y-3'>
+          <div className='grid sm:grid-cols-2 lg:grid-cols-3 gap-4'>
+            {assets.map(a => (
+              <div
+                key={a.id}
+                className='rounded-lg border p-3 space-y-2 relative'
+              >
+                <img src={a.dataUrl} alt={a.name} className='w-full rounded' />
+
+                <div className='flex items-center justify-between'>
+                  <Button
+                    type='button'
+                    variant={a.isPrimary ? 'default' : 'secondary'}
+                    size='sm'
+                    onClick={() => setPrimaryAsset(a.id)}
+                    title='이 이미지를 기본(Primary)로 지정'
+                  >
+                    <Star className='h-4 w-4 mr-1' /> Primary
+                  </Button>
+
+                  <Button
+                    type='button'
+                    variant='destructive'
+                    size='sm'
+                    onClick={() => removeAsset(a.id)}
+                    title='이미지 제거'
+                  >
+                    <X className='h-4 w-4' />
+                  </Button>
+                </div>
+
+                <Input
+                  placeholder='이 이미지 설명(선택)'
+                  value={a.caption || ''}
+                  onChange={e => setCaption(a.id, e.target.value)}
+                />
+
+                <div className='text-xs text-gray-500 truncate'>{a.name}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 결과 */}
       {generatedImages.length > 0 && (
         <div className='space-y-4'>
           <div className='flex justify-between items-center'>
             <h3 className='text-lg font-semibold'>
               생성된 이미지 ({generatedImages.length})
             </h3>
-            <Button variant='outline' size='sm' onClick={reset}>
-              <X className='mr-2 h-4 w-4' />
-              전체 초기화
+            <Button variant='outline' size='sm' onClick={resetAll}>
+              <X className='mr-2 h-4 w-4' /> 전체 초기화
             </Button>
           </div>
 
           <div className='grid md:grid-cols-2 lg:grid-cols-3 gap-4'>
-            {generatedImages.map((image, index) => (
-              <div key={index} className='relative group'>
+            {generatedImages.map((img, idx) => (
+              <div key={idx} className='relative group'>
                 <img
-                  src={image.dataUrl}
-                  alt={`Generated ${index + 1}`}
+                  src={img.dataUrl}
+                  alt={`Generated ${idx + 1}`}
                   className='w-full rounded-lg border'
                 />
                 <div className='absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center'>
                   <Button
                     variant='secondary'
                     size='sm'
-                    onClick={() => downloadImage(image.dataUrl, index)}
+                    onClick={() => downloadImage(img.dataUrl, idx)}
                   >
-                    <Download className='mr-2 h-4 w-4' />
-                    다운로드
+                    <Download className='mr-2 h-4 w-4' /> 다운로드
                   </Button>
                 </div>
               </div>
