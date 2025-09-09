@@ -17,7 +17,6 @@ export async function POST(req: NextRequest) {
     const response = await client.responses.create({
       model: 'gpt-4.1',
       input: scenePrompt(script, customRule),
-      //todo : 고정 프롬프트 추가 가능
     });
 
     console.log(response);

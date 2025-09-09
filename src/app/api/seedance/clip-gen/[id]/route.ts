@@ -23,7 +23,8 @@ export interface ImageToVideoRequest {
   baseImage: string;
   resolution: number;
   ratio: string;
-  characterSheet: string;
+  lastImage: string;
+  liteModel?: boolean;
 }
 
 export interface SeeDanceImageToVideoResponse {
@@ -60,6 +61,45 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const contentBody = !!body.lastImage
+      ? [
+          {
+            type: 'text',
+            text: `${body.prompt} --resolution ${body.resolution}p --ratio ${body.ratio}`,
+          },
+          {
+            type: 'image_url',
+            image_url: {
+              url: body.baseImage,
+            },
+            role: 'first_frame',
+          },
+          {
+            type: 'image_url',
+            image_url: {
+              url: body.lastImage,
+            },
+            role: 'last_frame',
+          },
+        ]
+      : [
+          {
+            type: 'text',
+            text: `${body.prompt} --resolution ${body.resolution}p --ratio ${body.ratio}`,
+          },
+          {
+            type: 'image_url',
+            image_url: {
+              url: body.baseImage,
+            },
+            role: 'first_frame',
+          },
+        ];
+
+    const clipModel =
+      !!body.lastImage || body?.liteModel
+        ? 'seedance-1-0-lite-i2v-250428'
+        : 'seedance-1-0-pro-250528';
     const response = await fetch(
       `https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks`,
       {
@@ -69,20 +109,8 @@ export async function POST(request: NextRequest) {
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: 'seedance-1-0-pro-250528',
-          content: [
-            {
-              type: 'text',
-              text: `${body.prompt} --resolution ${body.resolution}p --ratio ${body.ratio}`,
-            },
-            {
-              type: 'image_url',
-              image_url: {
-                url: body.baseImage,
-              },
-              role: 'first_frame',
-            },
-          ],
+          model: clipModel,
+          content: contentBody,
         }),
       }
     );

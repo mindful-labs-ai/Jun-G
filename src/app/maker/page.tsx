@@ -874,7 +874,6 @@ export default function MakerPage() {
             resolution: sourceResolution,
             ratio: sourceRatio,
             baseImage: baseImage,
-            characterSheet: uploadedImage?.dataUrl,
           };
 
           const response = await fetch(`/api/seedance/clip-gen/${sceneId}`, {
