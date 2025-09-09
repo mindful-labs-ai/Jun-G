@@ -53,13 +53,24 @@ export async function POST(request: NextRequest) {
               },
             ],
           },
-          ...additions?.map(a => ({
-            role: 'user',
-            parts: [
-              ...(a.caption ? [{ text: a.caption }] : []),
-              { inlineData: a.inlineData },
-            ],
-          })),
+          ...additions?.map(
+            (a: {
+              id: string;
+              name: string;
+              mimeType: string;
+              size: number;
+              dataUrl: string;
+              base64: string;
+              caption?: string;
+              isPrimary?: boolean;
+            }) => ({
+              role: 'user',
+              parts: [
+                ...(a.caption ? [{ text: a.caption }] : []),
+                { inlineData: { mimeType: a.mimeType, data: a.base64 } },
+              ],
+            })
+          ),
         ]
       : [
           {
