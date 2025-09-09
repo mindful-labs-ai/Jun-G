@@ -134,6 +134,8 @@ export function GeminiImageWithUpload() {
     if (!primary) throw new Error('최소 1장의 참조 이미지가 필요합니다.');
     const payload = {
       prompt,
+      ratio: '16:9',
+      resolution: 720,
       imageBase64: primary.base64,
       imageMimeType: primary.mimeType,
       additions: additions.map(a => ({
@@ -169,7 +171,9 @@ export function GeminiImageWithUpload() {
 
       const data = await res.json();
 
-      if (data.success === 'false') {
+      console.log(data);
+
+      if (!data.success) {
         notify('이미지 생성에 실패하셨습니다. 프롬프트를 더 다듬어주세요.');
         return;
       }
