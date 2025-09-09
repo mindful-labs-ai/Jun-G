@@ -967,9 +967,11 @@ export default function MakerPage() {
   const getClip = async ({
     sceneId,
     aiType,
+    polling,
   }: {
     sceneId: string;
     aiType: 'kling' | 'seedance';
+    polling?: boolean;
   }) => {
     const clipId = clipsByScene.get(sceneId)?.taskUrl;
 
@@ -989,10 +991,12 @@ export default function MakerPage() {
         console.log(json);
 
         if (json.data.task_status === 'processing') {
+          notify('클립 생성 중 입니다.');
           return;
         }
 
         if (json.data.task_status === 'submitted') {
+          notify('클립 생성 요청 중 입니다.');
           return;
         }
 

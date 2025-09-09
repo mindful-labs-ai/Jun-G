@@ -215,7 +215,11 @@ export default function ClipSection({
                 <div className='min-w-0 flex-1'>
                   <div className='mb-2 flex items-start justify-between'>
                     <div className='flex items-center gap-2 text-xs text-muted-foreground'>
-                      <span className='rounded-full border px-2.5 py-1'>
+                      <span
+                        className={`rounded-full border px-2.5 py-1 ${
+                          clip?.status === 'failed' ? 'bg-red-400' : ''
+                        }`}
+                      >
                         {statusChip}
                       </span>
                       <span>
