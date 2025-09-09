@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
       imageMimeType,
       ratio,
       resolution,
+      additionImage,
     } = body;
 
     if (!prompt || !imageBase64 || !imageMimeType) {
@@ -30,31 +31,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const inputBody = [
+      {
+        role: 'model',
+        parts: [
+          {
+            text: `Generate ${globalStyle} with this reference image ${ratio} ratio ${resolution}p resolution pixel image`,
+          },
+        ],
+      },
+      {
+        role: 'user',
+        parts: [
+          { text: JSON.stringify(prompt) },
+          {
+            inlineData: {
+              mimeType: imageMimeType,
+              data: imageBase64,
+            },
+          },
+        ],
+      },
+      additionImage,
+    ];
+
+    console.log(inputBody);
+
     const result = await genAI
       .getGenerativeModel({ model: 'gemini-2.5-flash-image-preview' })
       .generateContent({
-        contents: [
-          {
-            role: 'model',
-            parts: [
-              {
-                text: `Generate ${globalStyle} with this reference image ${ratio} ratio ${resolution}p resolution pixel image`,
-              },
-            ],
-          },
-          {
-            role: 'user',
-            parts: [
-              { text: JSON.stringify(prompt) },
-              {
-                inlineData: {
-                  mimeType: imageMimeType,
-                  data: imageBase64,
-                },
-              },
-            ],
-          },
-        ],
+        contents: inputBody,
       });
 
     console.log(result);

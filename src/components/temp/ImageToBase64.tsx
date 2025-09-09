@@ -11,6 +11,7 @@ import {
   FileImage,
   Sparkles,
 } from 'lucide-react';
+import { Input } from '../ui/input';
 
 interface UploadedImage {
   name: string;
@@ -28,12 +29,16 @@ export function GeminiImageWithUpload() {
   const [uploadedImage, setUploadedImage] = useState<UploadedImage | null>(
     null
   );
+  const [uploadedAddImage, setUploadedAddImage] =
+    useState<UploadedImage | null>(null);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [prompt, setPrompt] = useState('');
+  const [additionImageExplain, setAdditionImageExplain] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileAddInputRef = useRef<HTMLInputElement>(null);
 
   // 파일을 Base64로 변환
   const fileToBase64 = (file: File): Promise<UploadedImage> => {
@@ -73,6 +78,21 @@ export function GeminiImageWithUpload() {
     }
   };
 
+  const processAddFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setError('이미지 파일만 업로드 가능합니다.');
+      return;
+    }
+
+    try {
+      const convertedImage = await fileToBase64(file);
+      setUploadedAddImage(convertedImage);
+      setError(null);
+    } catch (err) {
+      setError('이미지 변환 실패');
+    }
+  };
+
   // 드래그 앤 드롭 핸들러
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -94,10 +114,26 @@ export function GeminiImageWithUpload() {
     }
   };
 
+  const handleAddDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      processAddFile(e.dataTransfer.files[0]);
+    }
+  };
+
   // 파일 선택 핸들러
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       processFile(e.target.files[0]);
+    }
+  };
+
+  const handleAddFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      processAddFile(e.target.files[0]);
     }
   };
 
@@ -121,6 +157,18 @@ export function GeminiImageWithUpload() {
           prompt: prompt,
           imageBase64: uploadedImage.base64,
           imageMimeType: uploadedImage.mimeType,
+          additionImage: {
+            role: 'user',
+            parts: [
+              { text: additionImageExplain },
+              {
+                inlineData: {
+                  mimeType: uploadedAddImage?.mimeType,
+                  data: uploadedAddImage?.base64,
+                },
+              },
+            ],
+          },
         }),
       });
 
@@ -181,7 +229,9 @@ export function GeminiImageWithUpload() {
       <div className='grid md:grid-cols-2 gap-6'>
         {/* 왼쪽: 업로드 섹션 */}
         <div className='space-y-4'>
-          <h3 className='text-lg font-semibold'>1. 참조 이미지 업로드</h3>
+          <h3 className='text-lg font-semibold'>
+            1. 참조 이미지 업로드 (필수)
+          </h3>
 
           {!uploadedImage ? (
             <div
@@ -240,9 +290,75 @@ export function GeminiImageWithUpload() {
             </div>
           )}
         </div>
-
-        {/* 오른쪽: 프롬프트 섹션 */}
         <div className='space-y-4'>
+          <h3 className='text-lg font-semibold'>
+            1-1. 추가 참조 이미지 업로드
+          </h3>
+
+          {!uploadedAddImage ? (
+            <div
+              className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                dragActive
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                  : 'border-gray-300 dark:border-gray-600'
+              }`}
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleAddDrop}
+            >
+              <input
+                ref={fileAddInputRef}
+                type='file'
+                accept='image/*'
+                onChange={handleAddFileInput}
+                className='hidden'
+              />
+
+              <FileImage className='mx-auto h-12 w-12 text-gray-400 mb-4' />
+
+              <p className='text-sm mb-4'>
+                이미지를 드래그하거나 클릭하여 업로드
+              </p>
+
+              <Button
+                onClick={() => fileAddInputRef.current?.click()}
+                variant='outline'
+              >
+                <Upload className='mr-2 h-4 w-4' />
+                이미지 선택
+              </Button>
+            </div>
+          ) : (
+            <div className='space-y-3'>
+              <div className='relative'>
+                <img
+                  src={uploadedAddImage.dataUrl}
+                  alt='Uploaded'
+                  className='w-full rounded-lg border'
+                />
+                <Button
+                  variant='destructive'
+                  size='sm'
+                  className='absolute top-2 right-2'
+                  onClick={() => setUploadedAddImage(null)}
+                >
+                  <X className='h-4 w-4' />
+                </Button>
+              </div>
+              <Input
+                onChange={e => setAdditionImageExplain(e.target.value)}
+                placeholder='이 이미지를 설명해주세요.'
+              />
+              <p className='text-sm text-gray-500'>
+                파일명: {uploadedAddImage.name}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* 프롬프트 섹션 */}
+        <div className='space-y-4 col-span-2'>
           <h3 className='text-lg font-semibold'>2. 생성 프롬프트 입력</h3>
 
           <Textarea
