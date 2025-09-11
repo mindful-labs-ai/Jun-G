@@ -426,37 +426,6 @@ export default function MakerPage() {
       return { ...prev, byId };
     });
 
-  // // 프롬프트 편집 반영 (현재 씬)
-  // const updateCurrentImagePromptJsonUnit = (
-  //   sceneId: string,
-  //   key: string,
-  //   v: string
-  // ) => {
-  //   if (!sceneId) return;
-  //   setScenesState(prev => {
-  //     const s = prev.byId.get(sceneId);
-  //     if (!s) return prev;
-  //     const byId = new Map(prev.byId);
-  //     byId.set(sceneId, { ...s, imagePrompt: { ...s.imagePrompt, [key]: v } });
-  //     return { ...prev, byId };
-  //   });
-  // };
-
-  // const updateCurrentClipPromptJsonUnit = (
-  //   sceneId: string,
-  //   key: string,
-  //   v: string
-  // ) => {
-  //   if (!sceneId) return;
-  //   setScenesState(prev => {
-  //     const s = prev.byId.get(sceneId);
-  //     if (!s) return prev;
-  //     const byId = new Map(prev.byId);
-  //     byId.set(sceneId, { ...s, clipPrompt: { ...s.clipPrompt, [key]: v } });
-  //     return { ...prev, byId };
-  //   });
-  // };
-
   // 현재 씬
   const currentScene = useMemo(
     () =>
@@ -646,6 +615,7 @@ export default function MakerPage() {
       }
     },
     [
+      globalStyle,
       scenesState.byId,
       uploadedImage,
       imageAiType,
