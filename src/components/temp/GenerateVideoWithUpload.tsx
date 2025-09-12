@@ -25,6 +25,8 @@ interface CalledVideoInfo {
   url: string;
 }
 
+type Ratio = '16:9' | '4:3' | '1:1' | '3:4' | '9:16';
+
 export function GenerateVideoWithUpload() {
   const [uploadedFirstFrame, setUploadedFirstFrame] =
     useState<UploadedImage | null>(null);
@@ -43,6 +45,7 @@ export function GenerateVideoWithUpload() {
   const firstFrameInputRef = useRef<HTMLInputElement>(null);
   const lastFrameInputRef = useRef<HTMLInputElement>(null);
   const [liteModel, setLiteModel] = useState(false);
+  const [ratio, setRatio] = useState<Ratio>('16:9');
 
   // 파일을 Base64로 변환
   const fileToBase64 = (file: File): Promise<UploadedImage> => {
@@ -207,14 +210,14 @@ export function GenerateVideoWithUpload() {
           baseImage: uploadedFirstFrame?.dataUrl,
           lastImage: uploadedLastFrame?.dataUrl,
           resolution: 720,
-          ratio: '16:9',
+          ratio: ratio,
           liteModel: liteModel,
         }
       : {
           prompt: prompt,
           baseImage: uploadedFirstFrame?.dataUrl,
           resolution: 720,
-          ratio: '16:9',
+          ratio: ratio,
           liteModel: liteModel,
         };
 
@@ -552,6 +555,26 @@ export function GenerateVideoWithUpload() {
               <label htmlFor='force-lite-model'>강제 lite model 사용하기</label>
             </div>
           </div>
+          <select
+            value={ratio}
+            onChange={e => setRatio(e.target.value as Ratio)}
+          >
+            <option key='16:9' value='16:9'>
+              16:9
+            </option>
+            <option key='4:3' value='4:3'>
+              4:3
+            </option>
+            <option key='1:1' value='1:1'>
+              1:1
+            </option>
+            <option key='3:4' value='3:4'>
+              3:4
+            </option>
+            <option key='9:16' value='9:16'>
+              9:16
+            </option>
+          </select>
         </div>
 
         {/* 프롬프트 섹션 */}

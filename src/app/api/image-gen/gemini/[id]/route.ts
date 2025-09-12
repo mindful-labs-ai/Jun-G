@@ -103,6 +103,9 @@ export async function POST(request: NextRequest) {
       .getGenerativeModel({ model: 'gemini-2.5-flash-image-preview' })
       .generateContent({
         contents: inputBody,
+        generationConfig: {
+          temperature: 0.3,
+        },
       });
 
     console.log(result);
