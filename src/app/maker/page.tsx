@@ -127,7 +127,6 @@ export default function MakerPage() {
 
   const deferredScenes = useDeferredValue(scenes);
 
-  // derived project status
   const status = useMemo(() => {
     const scenesConfirmed = [...scenesState.byId.values()].filter(
       s => s.confirmed
@@ -148,6 +147,8 @@ export default function MakerPage() {
   const allConfirmed = status.scenes === scenes.length;
 
   const allImagesConfirmed = status.images === scenes.length;
+
+  const allClipsConfirmed = status.clips === scenes.length;
 
   /* ============ init / cleanup ============ */
   useEffect(() => {
@@ -195,7 +196,7 @@ export default function MakerPage() {
   };
 
   /* ============ ZIP (stub) ============ */
-  function extFromMime(type?: string) {
+  const extFromMime = (type?: string) => {
     if (!type) return 'bin';
     const t = type.toLowerCase();
     if (t.includes('png')) return 'png';
@@ -206,50 +207,46 @@ export default function MakerPage() {
     if (t.includes('webm')) return 'webm';
     if (t.includes('quicktime') || t.includes('mov')) return 'mov';
     return 'bin';
-  }
+  };
 
-  function buildProxyUrl(
+  const buildProxyUrl = (
     srcUrl: string,
     opts?: { mode?: 'view' | 'download'; filename?: string }
-  ) {
+  ) => {
     const u = new URL('/api/proxy', window.location.origin);
     u.searchParams.set('url', srcUrl);
     if (opts?.mode) u.searchParams.set('mode', opts.mode);
     if (opts?.filename) u.searchParams.set('filename', opts.filename);
     return u.toString();
-  }
+  };
 
-  // 기존 함수 교체: CORS 에러 시 자동으로 프록시로 폴백
-  async function blobFromUrlOrDataUrl(url: string): Promise<Blob> {
+  const blobFromUrlOrDataUrl = async (url: string): Promise<Blob> => {
     // data: URL은 직접 fetch 가능
     if (url.startsWith('data:')) {
       const res = await fetch(url);
       return await res.blob();
     }
 
-    // 1차: 직접 fetch 시도 (CORS 허용되면 굳이 프록시 안 거침)
     try {
       const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) throw new Error(`Status ${res.status}`);
       return await res.blob();
     } catch {
-      // 2차: 프록시로 우회
       const proxied = buildProxyUrl(url, { mode: 'download' });
       const res2 = await fetch(proxied, { cache: 'no-store' });
       if (!res2.ok) throw new Error(`Proxy status ${res2.status}`);
       return await res2.blob();
     }
-  }
+  };
 
-  function pad2(n: number) {
+  const pad2 = (n: number) => {
     return String(n).padStart(2, '0');
-  }
+  };
 
   // === ZIP 다운로드 로직 ===
   const handleZipDownload = async () => {
     setZipDownloading(true);
     try {
-      // 지표 검사
       const okImages = Array.from(imagesByScene.entries()).filter(
         ([, img]) => img.status === 'succeeded' && !!img.dataUrl
       );
@@ -265,11 +262,9 @@ export default function MakerPage() {
       const JSZip = (await import('jszip')).default;
       const zip = new JSZip();
 
-      // 폴더 구성
       const imagesFolder = zip.folder('images');
       const clipsFolder = zip.folder('clips');
 
-      // 파일명은 scenesState.order 순서를 기준으로 정렬
       const indexOf = (sceneId: string) =>
         Math.max(0, scenesState.order.indexOf(sceneId));
 
@@ -284,7 +279,6 @@ export default function MakerPage() {
         })
       );
 
-      // 클립 추가 (kling/seedance는 보통 URL이므로 fetch->Blob)
       await Promise.all(
         okClips.map(async ([sceneId, clip]) => {
           const blob = await blobFromUrlOrDataUrl(clip.dataUrl!);
@@ -295,7 +289,6 @@ export default function MakerPage() {
         })
       );
 
-      // manifest + scenes 스냅샷
       const manifest = {
         generatedAt: new Date().toISOString(),
         summary: {
@@ -346,7 +339,6 @@ export default function MakerPage() {
         )
       );
 
-      // 압축 생성 & 다운로드
       const blob = await zip.generateAsync({ type: 'blob' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -375,6 +367,7 @@ export default function MakerPage() {
     setEditingScriptOpen(true);
     setTempScript(script);
   };
+
   const saveScriptChange = () => {
     const hasDownstream =
       scenesState.byId.size > 0 ||
@@ -417,14 +410,186 @@ export default function MakerPage() {
     });
 
   const confirmAllScenes = () =>
+    allConfirmed
+      ? setScenesState(prev => {
+          if (prev.byId.size === 0) return prev;
+          const byId = new Map(prev.byId);
+          for (const [id, s] of byId.entries()) {
+            byId.set(id, { ...s, confirmed: false });
+          }
+          return { ...prev, byId };
+        })
+      : setScenesState(prev => {
+          if (prev.byId.size === 0) return prev;
+          const byId = new Map(prev.byId);
+          for (const [id, s] of byId.entries()) {
+            byId.set(id, { ...s, confirmed: true });
+          }
+          return { ...prev, byId };
+        });
+
+  const insertNewScene = useCallback((index: number) => {
+    const newScene: Scene = {
+      id: nowId(`added-scene-${index}`),
+      originalText: '',
+      englishPrompt: '',
+      sceneExplain: '',
+      koreanSummary: '',
+      imagePrompt: {
+        intent: '',
+        img_style: '',
+        camera: {
+          shot_type: '',
+          angle: '',
+          focal_length: '',
+        },
+        subject: {
+          pose: '',
+          expression: '',
+          gaze: '',
+          hands: '',
+        },
+        lighting: {
+          key: '',
+          mood: '',
+        },
+        background: {
+          location: '',
+          dof: '',
+          props: '',
+          time: '',
+        },
+      },
+      clipPrompt: {
+        intent: '',
+        img_message: '',
+        background: {
+          location: '',
+          props: '',
+          time: '',
+        },
+        camera_motion: {
+          type: '',
+          easing: '',
+        },
+        subject_motion: [
+          {
+            time: '',
+            action: '',
+          },
+        ],
+        environment_motion: [
+          {
+            type: '',
+            action: '',
+          },
+        ],
+      },
+      confirmed: false,
+    };
+
     setScenesState(prev => {
-      if (prev.byId.size === 0) return prev;
       const byId = new Map(prev.byId);
-      for (const [id, s] of byId.entries()) {
-        byId.set(id, { ...s, confirmed: true });
-      }
-      return { ...prev, byId };
+      byId.set(newScene.id, newScene);
+
+      const order = [...prev.order];
+      const idx = Math.max(0, Math.min(index, order.length));
+      order.splice(idx, 0, newScene.id);
+
+      return { byId, order };
     });
+
+    setCurrentSceneId(newScene.id);
+    setEditingScene(newScene.id);
+    notify('새 장면이 추가되었습니다.');
+  }, []);
+
+  const insertSceneAfter = useCallback(
+    (targetId: string) => {
+      const insertOrder = scenesState.order.indexOf(targetId);
+      if (insertOrder < 0) {
+        notify('잘못된 대상입니다.');
+        return;
+      }
+      insertNewScene(insertOrder + 1);
+    },
+    [scenesState.order, insertNewScene]
+  );
+
+  const removeScene = useCallback(
+    async (sceneId: string) => {
+      if (!confirm(`장면 ${sceneId}를 정말 삭제하시겠습니까?`)) {
+        return;
+      }
+
+      if (!scenesState.byId.has(sceneId)) return;
+
+      const idx = scenesState.order.indexOf(sceneId);
+      const nextId =
+        scenesState.order[idx + 1] ?? scenesState.order[idx - 1] ?? null;
+
+      const clip = clipsByScene.get(sceneId);
+
+      if (
+        clip?.taskUrl &&
+        (clip.status === 'pending' || clip.status === 'queueing')
+      ) {
+        if (clipAiType === 'seedance') {
+          try {
+            await fetch(`/api/seedance/${clip.taskUrl}`, {
+              method: 'DELETE',
+              cache: 'no-store',
+            });
+          } catch (e) {
+            console.error('seedance cancel failed:', e);
+          }
+        }
+      }
+
+      imageQueuedSetRef.current.delete(sceneId);
+      imageQueueRef.current = imageQueueRef.current.filter(
+        id => id !== sceneId
+      );
+      clipQueuedSetRef.current.delete(sceneId);
+      clipQueueRef.current = clipQueueRef.current.filter(
+        job => job.sceneId !== sceneId
+      );
+
+      setScenesState(prev => {
+        const byId = new Map(prev.byId);
+        byId.delete(sceneId);
+        const order = prev.order.filter(id => id !== sceneId);
+        return { byId, order };
+      });
+
+      setImagesByScene(prev => {
+        if (!prev.has(sceneId)) return prev;
+        const next = new Map(prev);
+        next.delete(sceneId);
+        return next;
+      });
+
+      setClipsByScene(prev => {
+        if (!prev.has(sceneId)) return prev;
+        const next = new Map(prev);
+        next.delete(sceneId);
+        return next;
+      });
+
+      if (currentSceneId === sceneId) setCurrentSceneId(nextId);
+      if (editingScene === sceneId) setEditingScene(nextId);
+
+      notify('장면이 삭제되었습니다.');
+    },
+    [
+      scenesState.byId,
+      scenesState.order,
+      clipsByScene,
+      clipAiType,
+      currentSceneId,
+      editingScene,
+    ]
+  );
 
   // 현재 씬
   const currentScene = useMemo(
@@ -662,27 +827,63 @@ export default function MakerPage() {
     [imagesByScene]
   );
 
-  const generateAllImages = useCallback(() => {
+  const generateMultiImages = useCallback(() => {
     if (!uploadedImage) {
       notify('참조 이미지를 먼저 선택해주세요.');
       return;
     }
-    if (
-      !confirm('모든 장면에 대한 이미지를 큐에 넣어 0.5초 간격으로 요청합니다.')
-    ) {
+
+    const allIds = scenesState.order;
+    if (allIds.length === 0) {
+      notify('장면이 없습니다.');
       return;
     }
 
-    // 순서대로 큐 적재
-    for (const id of scenesState.order) {
-      enqueueImageId(id);
+    const confirmedSceneIds = allIds.filter(
+      id => scenesState.byId.get(id)?.confirmed
+    );
+    if (confirmedSceneIds.length === 0) {
+      notify('확정된 장면이 없습니다. 장면을 먼저 확정해주세요.');
+      return;
     }
 
-    // 드레인 시작 (응답은 기다리지 않음)
-    startImageQueue(500);
+    let targets: string[];
+    if (confirmedSceneIds.length === allIds.length) {
+      if (!confirm(`모든 장면, ${allIds.length}개에 대해 이미지를 생성합니다.`))
+        return;
+      targets = allIds;
+    } else {
+      // 일부만 확정: 확인=선택 생성(확정만), 취소=전체 생성(전체)
+      const useOnlyConfirmed = confirm(
+        `선택된 장면, ${confirmedSceneIds.length}개의 이미지를 생성합니다.`
+      );
+      targets = useOnlyConfirmed ? confirmedSceneIds : [];
+    }
 
-    notify(`${imageQueueRef.current.length}건이 큐에 추가되었습니다.`);
-  }, [uploadedImage, scenesState.order, enqueueImageId, startImageQueue]);
+    if (targets.length === 0) {
+      return;
+    }
+
+    let enqueued = 0;
+    for (const id of targets) {
+      enqueueImageId(id);
+      enqueued++;
+    }
+
+    if (enqueued === 0) {
+      notify('큐에 넣을 항목이 없습니다.');
+      return;
+    }
+
+    startImageQueue(500);
+    notify(`${enqueued}건이 이미지 큐에 추가되었습니다.`);
+  }, [
+    uploadedImage,
+    scenesState.order,
+    scenesState.byId,
+    enqueueImageId,
+    startImageQueue,
+  ]);
 
   const confirmImage = (sceneId: string) => {
     setImagesByScene(prev => {
@@ -694,16 +895,24 @@ export default function MakerPage() {
     });
   };
 
-  const confirmAllImages = () => {
-    setImagesByScene(prev => {
-      if (prev.size === 0) return prev;
-      const next = new Map(prev);
-      for (const [sceneId, img] of next) {
-        if (!img.confirmed) next.set(sceneId, { ...img, confirmed: true });
-      }
-      return next;
-    });
-  };
+  const confirmAllImages = () =>
+    allImagesConfirmed
+      ? setImagesByScene(prev => {
+          if (prev.size === 0) return prev;
+          const next = new Map(prev);
+          for (const [sceneId, img] of next) {
+            next.set(sceneId, { ...img, confirmed: false });
+          }
+          return next;
+        })
+      : setImagesByScene(prev => {
+          if (prev.size === 0) return prev;
+          const next = new Map(prev);
+          for (const [sceneId, img] of next) {
+            if (!img.confirmed) next.set(sceneId, { ...img, confirmed: true });
+          }
+          return next;
+        });
 
   useEffect(() => {
     return () => {
@@ -1067,39 +1276,71 @@ export default function MakerPage() {
     }
   };
 
-  const generateAllClips = () => {
-    if (imagesByScene.size < scenes.length) {
-      notify('이미지를 먼저 만들어주세요.');
+  const generateMultiClips = useCallback(() => {
+    const allIds = scenesState.order;
+    if (allIds.length === 0) {
+      notify('장면이 없습니다.');
       return;
     }
-    if (!confirm('이전 클립은 삭제됩니다. 진행하시겠습니까?')) return;
-    if (
-      !confirm(
-        '모든 이미지를 클립으로 만듭니다. 큐에 넣고 0.5초 간격으로 요청합니다.'
-      )
-    )
-      return;
 
-    // 씬 순서대로 큐 적재 (이미지 없는 씬은 스킵)
+    const allValidWithImage = allIds.filter(
+      id => !!imagesByScene.get(id)?.dataUrl
+    );
+    if (allValidWithImage.length === 0) {
+      notify('클립을 만들 이미지가 없습니다. 먼저 이미지를 생성하세요.');
+      return;
+    }
+
+    const confirmedImageIds = allValidWithImage.filter(id => {
+      const img = imagesByScene.get(id);
+      return !!img?.dataUrl && img?.confirmed;
+    });
+
+    if (!confirm('이전 클립은 삭제됩니다. 진행하시겠습니까?')) {
+      return;
+    }
+
+    let targets: string[];
+    if (allClipsConfirmed) {
+      if (
+        !confirm(
+          `모든 이미지, ${confirmedImageIds.length}개의 클립을 생성합니다.`
+        )
+      )
+        return;
+      targets = confirmedImageIds;
+    } else {
+      const useOnlyConfirmed = confirm(
+        `확정된 이미지, ${confirmedImageIds.length}개의 클립을 생성합니다.`
+      );
+      targets = useOnlyConfirmed ? confirmedImageIds : [];
+    }
+
+    if (targets.length === 0) {
+      return;
+    }
+
     let enqueued = 0;
-    for (const sceneId of scenesState.order) {
-      const base = imagesByScene.get(sceneId)?.dataUrl;
-      if (!base) continue; // 안전장치: base image 없는 씬은 제외
-      enqueueClipJob({ sceneId, aiType: clipAiType });
+    for (const id of targets) {
+      enqueueClipJob({ sceneId: id, aiType: clipAiType });
       enqueued++;
     }
 
     if (enqueued === 0) {
-      notify(
-        '큐에 넣을 항목이 없습니다. (이미지 없음 또는 클립이 이미 진행/완료 상태)'
-      );
+      notify('큐에 넣을 항목이 없습니다.');
       return;
     }
 
-    // 3) 드레인 시작 (응답 대기 없이 발사)
     startClipQueue(500);
-    notify(`${enqueued}개가 큐에 추가되었습니다.`);
-  };
+    notify(`${enqueued}개가 클립 큐에 추가되었습니다.`);
+  }, [
+    allClipsConfirmed,
+    scenesState.order,
+    imagesByScene,
+    enqueueClipJob,
+    startClipQueue,
+    clipAiType,
+  ]);
 
   const confirmClip = (sceneId: string) => {
     setClipsByScene(prev => {
@@ -1111,16 +1352,25 @@ export default function MakerPage() {
     });
   };
 
-  const confirmAllClips = () => {
-    setClipsByScene(prev => {
-      if (prev.size === 0) return prev;
-      const next = new Map(prev);
-      for (const [sceneId, clip] of next) {
-        if (!clip.confirmed) next.set(sceneId, { ...clip, confirmed: true });
-      }
-      return next;
-    });
-  };
+  const confirmAllClips = () =>
+    allClipsConfirmed
+      ? setClipsByScene(prev => {
+          if (prev.size === 0) return prev;
+          const next = new Map(prev);
+          for (const [sceneId, clip] of next) {
+            next.set(sceneId, { ...clip, confirmed: false });
+          }
+          return next;
+        })
+      : setClipsByScene(prev => {
+          if (prev.size === 0) return prev;
+          const next = new Map(prev);
+          for (const [sceneId, clip] of next) {
+            if (!clip.confirmed)
+              next.set(sceneId, { ...clip, confirmed: true });
+          }
+          return next;
+        });
 
   useEffect(() => {
     return () => {
@@ -1229,6 +1479,7 @@ export default function MakerPage() {
         zipDownloading={zipDownloading}
         onZip={handleZipDownload}
       />
+      <Button onClick={() => console.log(scenesState)}>테스트</Button>
 
       <main className='container mx-auto px-4 py-6'>
         <div className='grid grid-cols-1 gap-6 mb-2'>
@@ -1247,11 +1498,13 @@ export default function MakerPage() {
               setCurrentSceneId(id);
             }}
             editingScene={editingScene}
+            addScene={insertSceneAfter}
+            removeScene={removeScene}
             // images
             images={imagesByScene}
             uploadRefImage={setUploadedImage}
             onGenerateImage={handleGenerateImage}
-            onGenerateAllImages={generateAllImages}
+            onGenerateAllImages={generateMultiImages}
             onConfirmImage={confirmImage}
             onConfirmAllImages={confirmAllImages}
             isConfirmedAllImage={allImagesConfirmed}
@@ -1259,7 +1512,7 @@ export default function MakerPage() {
             // clips
             clips={clipsByScene}
             onGenerateClip={handleGenerateClip}
-            onGenerateAllClips={generateAllClips}
+            onGenerateAllClips={generateMultiClips}
             onConfirmClip={confirmClip}
             onConfirmAllClips={confirmAllClips}
             onQueueAction={getClip}
@@ -1276,6 +1529,7 @@ export default function MakerPage() {
             onSelect={setCurrentSceneId}
           />
           <SceneCanvas
+            script={script}
             step={step as 0 | 1 | 2}
             scene={currentScene}
             setScenesState={setScenesState}
@@ -1287,28 +1541,6 @@ export default function MakerPage() {
             onGenerateClip={handleGenerateClip}
             onConfirmClip={confirmClip}
           />
-
-          {step === 0 && (
-            <div className='flex items-center gap-2'>
-              <Button
-                variant='outline'
-                onClick={handleGenerateScenes}
-                disabled={generatingScenes}
-              >
-                {generatingScenes ? (
-                  <>
-                    <RefreshCw className='w-4 h-4 mr-2 animate-spin' /> 장면
-                    생성 중
-                  </>
-                ) : (
-                  '장면 쪼개기'
-                )}
-              </Button>
-              <Button variant='outline' onClick={confirmAllScenes}>
-                모든 장면 확정
-              </Button>
-            </div>
-          )}
         </div>
       </main>
 

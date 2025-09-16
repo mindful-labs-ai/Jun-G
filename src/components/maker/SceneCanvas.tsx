@@ -12,10 +12,12 @@ import type {
 } from '../../lib/maker/types';
 import ClipPromptEditor from './ClipPromptEditor';
 import ImagePromptEditor from './ImagePromptEditor';
+import SingleSceneRegenerator from './SingleSceneGenerator';
 
 type Step = 0 | 1 | 2;
 
 type Props = {
+  script: string;
   step: Step; // 0: scenes, 1: images, 2: clips
   scene: Scene | null;
   setScenesState: React.Dispatch<React.SetStateAction<ScenesState>>;
@@ -31,7 +33,8 @@ type Props = {
   onConfirmClip?: (clipId: string) => void;
 };
 
-export default function SceneCanvas({
+export const SceneCanvas = ({
+  script,
   step,
   scene,
   setScenesState,
@@ -41,7 +44,7 @@ export default function SceneCanvas({
   onGenerateImage,
   onConfirmImage,
   onConfirmClip,
-}: Props) {
+}: Props) => {
   if (!scene) {
     return (
       <Card>
@@ -72,9 +75,20 @@ export default function SceneCanvas({
           <Separator />
           <div>
             <div className='text-xs text-muted-foreground mb-2'>
-              {step === 2 ? 'ClipPrompt' : 'ImagePrompt'}
+              {step === 0
+                ? 'SceneGenerating'
+                : step === 1
+                ? 'ImagePrompt'
+                : 'ClipPrompt'}
             </div>
-            {step === 1 ? (
+            {step === 0 ? (
+              <SingleSceneRegenerator
+                scene={scene}
+                sceneId={scene.id}
+                script={script}
+                setScenesState={setScenesState}
+              />
+            ) : step === 1 ? (
               <ImagePromptEditor
                 imagePrompt={scene.imagePrompt}
                 sceneId={scene.id}
@@ -205,4 +219,6 @@ export default function SceneCanvas({
       </Card>
     </div>
   );
-}
+};
+
+export default SceneCanvas;

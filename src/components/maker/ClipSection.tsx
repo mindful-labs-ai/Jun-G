@@ -13,7 +13,7 @@ import {
 import { useAIConfigStore } from '@/lib/maker/useAiConfigStore';
 import { buildClipPromptText } from '@/lib/maker/clipPromptBuilder';
 
-export default function ClipSection({
+export const ClipSection = ({
   scenes,
   images,
   clips,
@@ -40,7 +40,7 @@ export default function ClipSection({
     aiType: 'kling' | 'seedance';
   }) => Promise<void>;
   setIdleSceneClip: (sceneId: string) => void;
-}) {
+}) => {
   const clipAiType = useAIConfigStore(config => config.clipAiType);
 
   const anyClipReady =
@@ -94,7 +94,7 @@ export default function ClipSection({
 
             const isGenerating = clip?.status === 'pending';
             const isQueueing = clip?.status === 'queueing';
-            const videoSrc = clip?.dataUrl; // data:video/mp4;base64,... 혹은 URL
+            const videoSrc = clip?.dataUrl;
 
             const statusChip =
               clip?.status === 'queueing'
@@ -301,4 +301,6 @@ export default function ClipSection({
       )}
     </div>
   );
-}
+};
+
+export default ClipSection;

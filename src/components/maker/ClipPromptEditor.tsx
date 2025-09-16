@@ -7,11 +7,11 @@ type Props = {
   clipPrompt: ClipPromptJson; // 상위에서 현재 씬의 clipPrompt를 내려주세요
 };
 
-export default function ClipPromptEditor({
+export const ClipPromptEditor = ({
   sceneId,
   setScenesState,
   clipPrompt,
-}: Props) {
+}: Props) => {
   /* ========= 경로 유틸: "a.b[0].c" → 깊은 set/get ========= */
 
   // "a.b[0].c" → ["a","b",0,"c"]
@@ -331,4 +331,6 @@ export default function ClipPromptEditor({
       </div>
     </div>
   );
-}
+};
+
+export default ClipPromptEditor;

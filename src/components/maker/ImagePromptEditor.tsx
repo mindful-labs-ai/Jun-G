@@ -7,11 +7,11 @@ type Props = {
   imagePrompt: ImagePromptJson;
 };
 
-export default function ImagePromptEditor({
+export const ImagePromptEditor = ({
   sceneId,
   setScenesState,
   imagePrompt,
-}: Props) {
+}: Props) => {
   /* ========= 경로 유틸: "a.b[0].c" → 깊은 세트/겟 ========= */
 
   // "a.b[0].c" → ["a","b",0,"c"]
@@ -259,4 +259,6 @@ export default function ImagePromptEditor({
       </div>
     </div>
   );
-}
+};
+
+export default ImagePromptEditor;

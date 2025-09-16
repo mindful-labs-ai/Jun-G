@@ -35,6 +35,8 @@ type Props = {
   isConfirmedAllScenes: boolean;
   onEditScene: (id: string) => void;
   editingScene: string | number | null;
+  addScene: (targetId: string) => void;
+  removeScene: (sceneId: string) => Promise<void>;
 
   // images
   images: Map<string, GeneratedImage>;
@@ -81,6 +83,8 @@ export default function VisualPipeline({
   onConfirmScene,
   onConfirmAllScenes,
   isConfirmedAllScenes,
+  addScene,
+  removeScene,
 
   images,
   onGenerateImage,
@@ -256,6 +260,8 @@ export default function VisualPipeline({
                   onConfirm={onConfirmScene}
                   onConfirmAll={onConfirmAllScenes}
                   isConfirmedAllScenes={isConfirmedAllScenes}
+                  addScene={addScene}
+                  removeScene={removeScene}
                 />
               </div>
             )}

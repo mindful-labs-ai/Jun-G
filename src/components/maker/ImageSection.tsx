@@ -21,7 +21,7 @@ type Props = {
   selectedSceneIds?: Set<string>;
 };
 
-export default function ImageSection({
+export const ImageSection = ({
   scenes,
   images,
   onConfirmImage,
@@ -30,7 +30,7 @@ export default function ImageSection({
   onGenerateImage,
   onGenerateAllClips,
   setIdleSceneImage,
-}: Props) {
+}: Props) => {
   return (
     <div
       className={`p-4 border border-border rounded-lg ${
@@ -46,16 +46,19 @@ export default function ImageSection({
         </div>
         <div className='space-x-2'>
           {Array.from(images.values()).filter(img => img.dataUrl).length ===
-            scenes.length &&
-            (!isConfirmedAllImage ? (
+            scenes.length && (
+            <>
               <Button variant='outline' onClick={onConfirmAllImages}>
-                전체 확정
+                {isConfirmedAllImage ? '전체 해제' : '전체 선택'}
               </Button>
-            ) : (
-              <Button onClick={() => onGenerateAllClips()}>
-                클립 병렬 작업
+              <Button
+                variant={isConfirmedAllImage ? 'default' : 'outline'}
+                onClick={() => onGenerateAllClips()}
+              >
+                {isConfirmedAllImage ? '전체 생성' : '선택 생성'}
               </Button>
-            ))}
+            </>
+          )}
         </div>
       </div>
 
@@ -133,7 +136,7 @@ export default function ImageSection({
                       variant={image?.confirmed ? 'default' : 'secondary'}
                       className='h-8 w-8 p-0'
                       onClick={() => image && onConfirmImage(image.sceneId)}
-                      disabled={!image || image.confirmed}
+                      disabled={!image}
                     >
                       <Check className='h-4 w-4' />
                     </Button>
@@ -217,4 +220,6 @@ export default function ImageSection({
       )}
     </div>
   );
-}
+};
+
+export default ImageSection;

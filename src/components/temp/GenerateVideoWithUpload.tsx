@@ -32,7 +32,7 @@ export function GenerateVideoWithUpload() {
     useState<UploadedImage | null>(null);
   const [uploadedLastFrame, setUploadedLastFrame] =
     useState<UploadedImage | null>(null);
-  const [aiType, setAiType] = useState<'SEE_DANCE' | 'KLING'>('SEE_DANCE');
+  const [aiType, setAiType] = useState<'SEE_DANCE'>('SEE_DANCE');
   const [generatedClips, setGeneratedClips] = useState<CalledVideoInfo[]>([]);
   const [clipId, setClipId] = useState<string | null>(null);
   const [prompt, setPrompt] = useState('');
@@ -145,55 +145,49 @@ export function GenerateVideoWithUpload() {
   };
 
   const handleGenerateVideo = () => {
-    if (aiType === 'SEE_DANCE') {
-      generateWithSeedance();
-    }
-
-    if (aiType === 'KLING') {
-      generateWithKling();
-    }
+    generateWithSeedance();
   };
 
-  const generateWithKling = async () => {
-    if (!uploadedFirstFrame || !prompt.trim()) {
-      setError('이미지와 프롬프트를 모두 입력해주세요.');
-      return;
-    }
+  // const generateWithKling = async () => {
+  //   if (!uploadedFirstFrame || !prompt.trim()) {
+  //     setError('이미지와 프롬프트를 모두 입력해주세요.');
+  //     return;
+  //   }
 
-    setIsGenerating(true);
-    setError(null);
+  //   setIsGenerating(true);
+  //   setError(null);
 
-    try {
-      const response = await fetch('/api/kling', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          duration: duration,
-          image_base64: uploadedFirstFrame.base64,
-          prompt: prompt,
-          negative_prompt: negativePrompt,
-          cfg_scale: cfgValue,
-        }),
-      });
+  //   try {
+  //     const response = await fetch('/api/kling', {
+  //       method: 'POST',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //       },
+  //       body: JSON.stringify({
+  //         duration: duration,
+  //         image_base64: uploadedFirstFrame.base64,
+  //         prompt: prompt,
+  //         negative_prompt: negativePrompt,
+  //         cfg_scale: cfgValue,
+  //       }),
+  //     });
 
-      if (!response.ok) {
-        console.log('에러남');
-        throw new Error('이미지 생성 실패');
-      }
+  //     if (!response.ok) {
+  //       console.log('에러남');
+  //       throw new Error('이미지 생성 실패');
+  //     }
 
-      const data = (await response.json()) as KlingImageToVideoResponse;
+  //     const data = (await response.json()) as KlingImageToVideoResponse;
 
-      console.log(data);
+  //     console.log(data);
 
-      setClipId(data.data.task_id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '알 수 없는 오류');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
+  //     setClipId(data.data.task_id);
+  //   } catch (err) {
+  //     setError(err instanceof Error ? err.message : '알 수 없는 오류');
+  //   } finally {
+  //     setIsGenerating(false);
+  //   }
+  // };
 
   const generateWithSeedance = async () => {
     if (!uploadedFirstFrame || !prompt.trim()) {
@@ -248,50 +242,46 @@ export function GenerateVideoWithUpload() {
   };
 
   const handleGetVideo = (id: string) => {
-    if (aiType === 'KLING') {
-      getWithKling(id);
-    }
-
     if (aiType === 'SEE_DANCE') {
       getWithSeedance(id);
     }
   };
 
-  const getWithKling = async (id: string) => {
-    {
-      const response = await fetch(`/api/kling/${id}`, {
-        method: 'GET',
-        cache: 'no-store',
-      });
+  // const getWithKling = async (id: string) => {
+  //   {
+  //     const response = await fetch(`/api/kling/${id}`, {
+  //       method: 'GET',
+  //       cache: 'no-store',
+  //     });
 
-      if (!response.ok) {
-        throw new Error(`Status ${response.status}`);
-      }
+  //     if (!response.ok) {
+  //       throw new Error(`Status ${response.status}`);
+  //     }
 
-      const jsonData =
-        (await response.json()) as KlingImageToVideoStatusResponse;
+  //     const jsonData =
+  //       (await response.json()) as KlingImageToVideoStatusResponse;
 
-      const videoUrl = jsonData.data.task_result?.videos[0].url;
+  //     const videoUrl = jsonData.data.task_result?.videos[0].url;
 
-      if (videoUrl === undefined || jsonData.message !== 'SUCCEED') {
-        return;
-      }
+  //     if (videoUrl === undefined || jsonData.message !== 'SUCCEED') {
+  //       return;
+  //     }
 
-      setGeneratedClips(prev => {
-        const next = [
-          ...prev,
-          {
-            aiType: 'KLING',
-            id: jsonData.data.task_id,
-            url: videoUrl,
-          },
-        ];
-        console.log(next);
-        console.log(jsonData);
-        return next;
-      });
-    }
-  };
+  //     setGeneratedClips(prev => {
+  //       const next = [
+  //         ...prev,
+  //         {
+  //           aiType: 'KLING',
+  //           id: jsonData.data.task_id,
+  //           url: videoUrl,
+  //         },
+  //       ];
+  //       console.log(next);
+  //       console.log(jsonData);
+  //       return next;
+  //     });
+  //   }
+  // };
 
   const getWithSeedance = async (id: string) => {
     {
@@ -325,38 +315,38 @@ export function GenerateVideoWithUpload() {
     }
   };
 
-  const getUrlId = async () => {
-    const response = await fetch(`/api/kling`, {
-      method: 'GET',
-      cache: 'no-store',
-    });
+  // const getUrlId = async () => {
+  //   const response = await fetch(`/api/kling`, {
+  //     method: 'GET',
+  //     cache: 'no-store',
+  //   });
 
-    const data = await response.json();
+  //   const data = await response.json();
 
-    console.log(data);
-  };
+  //   console.log(data);
+  // };
 
   // 이미지 다운로드
-  const downloadImage = (dataUrl: string, index: number) => {
-    const link = document.createElement('a');
-    link.href = dataUrl;
-    link.download = `kling-generated-${index + 1}.mp3`;
-    link.click();
-  };
+  // const downloadImage = (dataUrl: string, index: number) => {
+  //   const link = document.createElement('a');
+  //   link.href = dataUrl;
+  //   link.download = `kling-generated-${index + 1}.mp3`;
+  //   link.click();
+  // };
 
   // 초기화
-  const reset = () => {
-    setUploadedFirstFrame(null);
-    setGeneratedClips([]);
-    setPrompt('');
-    setError(null);
-    if (firstFrameInputRef.current) {
-      firstFrameInputRef.current.value = '';
-    }
-    if (lastFrameInputRef.current) {
-      lastFrameInputRef.current.value = '';
-    }
-  };
+  // const reset = () => {
+  //   setUploadedFirstFrame(null);
+  //   setGeneratedClips([]);
+  //   setPrompt('');
+  //   setError(null);
+  //   if (firstFrameInputRef.current) {
+  //     firstFrameInputRef.current.value = '';
+  //   }
+  //   if (lastFrameInputRef.current) {
+  //     lastFrameInputRef.current.value = '';
+  //   }
+  // };
 
   return (
     <div className='w-full max-w-6xl mx-auto p-6 space-y-6'>
@@ -522,17 +512,6 @@ export function GenerateVideoWithUpload() {
               <label htmlFor='duration-10'>10s</label>
             </div>
             <p>생성 AI 종류</p>
-            <div className='flex gap-2'>
-              <input
-                type='radio'
-                value='KLING'
-                id='aiType-KLING'
-                checked={aiType === 'KLING'}
-                onChange={() => setAiType('KLING')}
-                name='aiType'
-              />
-              <label htmlFor='aiType-KLING'>Kling 사용하기</label>
-            </div>
             <div className='flex gap-2'>
               <input
                 type='radio'
