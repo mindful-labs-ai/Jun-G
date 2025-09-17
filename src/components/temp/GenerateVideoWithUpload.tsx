@@ -599,18 +599,20 @@ export function GenerateVideoWithUpload() {
       </div>
       {generatedClips.length !== 0 && (
         <div className='grid grid-cols-3 gap-4'>
-          {generatedClips.map((clip, index) => {
-            return (
-              <div className='text-center' key={clip.id + index}>
-                <video
-                  src={clip.url}
-                  controls
-                  preload='metadata'
-                  playsInline
-                ></video>
-              </div>
-            );
-          })}
+          {generatedClips
+            .map((clip, index) => {
+              return (
+                <div className='text-center' key={clip.id + index}>
+                  <video
+                    src={clip.url}
+                    controls
+                    preload='metadata'
+                    playsInline
+                  ></video>
+                </div>
+              );
+            })
+            .reverse()}
         </div>
       )}
     </div>

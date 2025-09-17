@@ -329,24 +329,26 @@ export function GeminiImageWithUpload() {
           </div>
 
           <div className='grid md:grid-cols-2 lg:grid-cols-3 gap-4'>
-            {generatedImages.map((img, idx) => (
-              <div key={idx} className='relative group'>
-                <img
-                  src={img.dataUrl}
-                  alt={`Generated ${idx + 1}`}
-                  className='w-full rounded-lg border'
-                />
-                <div className='absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center'>
-                  <Button
-                    variant='secondary'
-                    size='sm'
-                    onClick={() => downloadImage(img.dataUrl, idx)}
-                  >
-                    <Download className='mr-2 h-4 w-4' /> 다운로드
-                  </Button>
+            {generatedImages
+              .map((img, idx) => (
+                <div key={idx} className='relative group'>
+                  <img
+                    src={img.dataUrl}
+                    alt={`Generated ${idx + 1}`}
+                    className='w-full rounded-lg border'
+                  />
+                  <div className='absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center'>
+                    <Button
+                      variant='secondary'
+                      size='sm'
+                      onClick={() => downloadImage(img.dataUrl, idx)}
+                    >
+                      <Download className='mr-2 h-4 w-4' /> 다운로드
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+              .reverse()}
           </div>
         </div>
       )}
