@@ -90,10 +90,8 @@ export interface GeneratedClip {
 }
 
 export interface NarrationSettings {
-  tempo: number; // 25-200
-  tone: string; // "neutral" | ...
-  voice: string; // "female" | ...
-  style: string; // "professional" | ...
+  stability: number;
+  model: string;
 }
 
 export interface GeneratedNarration {

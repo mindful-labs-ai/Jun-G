@@ -21,17 +21,27 @@ export const SceneList = ({
   isConfirmedAllScenes,
   addScene,
   removeScene,
+  selected,
+  setSelected,
 }: {
   scenes: Scene[];
   generating: boolean;
   onGenerate: () => void;
-  onGenerateImage: (sceneId: string) => Promise<void>;
+  onGenerateImage: (
+    sceneId: string,
+    queue?: boolean,
+    opts?: {
+      selected?: boolean;
+    }
+  ) => Promise<void>;
   onGenerateAllImages: () => void;
   onConfirm: (id: string) => void;
   onConfirmAll: () => void;
   isConfirmedAllScenes: boolean;
   addScene: (targetId: string) => void;
   removeScene: (sceneId: string) => Promise<void>;
+  selected: Set<string>;
+  setSelected: (sceneId: string) => void;
 }) => {
   return (
     <div className='p-4 border border-border rounded-lg'>
@@ -83,7 +93,18 @@ export const SceneList = ({
             >
               <div className='flex relative items-start justify-between mb-2'>
                 <div className='flex-1'>
-                  <h1 className='text-lg mb-4'># {scene.id}</h1>
+                  <div className='flex gap-4 mb-4'>
+                    <h1 className='text-lg'># {scene.id}</h1>
+                    <div className='flex text-xs text-muted-foreground gap-1 items-center'>
+                      <input
+                        checked={selected.has(scene.id)}
+                        onChange={() => setSelected(scene.id)}
+                        id={scene.id}
+                        type='checkbox'
+                      />
+                      <label htmlFor={scene.id}>이미지 캐릭터 미사용</label>
+                    </div>
+                  </div>
                   <p className='text-xs text-muted-foreground mb-1'>원문:</p>
                   <p className='text-sm font-medium mb-2 whitespace-pre-line'>
                     {scene.originalText}
@@ -116,7 +137,11 @@ export const SceneList = ({
                   <Button
                     size='default'
                     variant='outline'
-                    onClick={() => onGenerateImage(scene.id)}
+                    onClick={() =>
+                      onGenerateImage(scene.id, false, {
+                        selected: selected.has(scene.id),
+                      })
+                    }
                   >
                     이미지 생성
                   </Button>

@@ -8,13 +8,21 @@ import { Check, Image as ImageIcon, Loader2, RefreshCw } from 'lucide-react';
 type Props = {
   scenes: Scene[];
   images: Map<string, GeneratedImage>;
-  onGenerateImage: (sceneId: string) => void;
+  onGenerateImage: (
+    sceneId: string,
+    queue?: boolean,
+    opts?: {
+      selected?: boolean;
+    }
+  ) => Promise<void>;
   onGenerateAllClips: () => void;
   onConfirmImage: (imgId: string) => void;
   onConfirmAllImages: () => void;
   isConfirmedAllImage: boolean;
   uploadRefImage: React.Dispatch<React.SetStateAction<UploadedImage | null>>;
   setIdleSceneImage: (sceneId: string) => void;
+  selected: Set<string>;
+  setSelected: (sceneId: string) => void;
 
   // 선택 모드(선택 가능하면 체크박스가 뜸)
   selectable?: boolean;
@@ -30,6 +38,8 @@ export const ImageSection = ({
   onGenerateImage,
   onGenerateAllClips,
   setIdleSceneImage,
+  selected,
+  setSelected,
 }: Props) => {
   return (
     <div
@@ -119,7 +129,11 @@ export const ImageSection = ({
                       className='flex-1'
                       size='sm'
                       variant='outline'
-                      onClick={() => onGenerateImage(scene.id)}
+                      onClick={() =>
+                        onGenerateImage(scene.id, false, {
+                          selected: selected.has(scene.id),
+                        })
+                      }
                       disabled={image?.status === 'pending'}
                     >
                       {image?.status === 'pending' ? (
@@ -162,11 +176,21 @@ export const ImageSection = ({
                         </Button>
                       </span>
                     </div>
-                    {image && (
-                      <span className='text-xs rounded-full border px-2 py-0.5 text-muted-foreground'>
-                        {new Date(image.timestamp).toLocaleTimeString()}
-                      </span>
-                    )}
+                    <div className='flex text-xs text-muted-foreground gap-1 items-center'>
+                      <input
+                        checked={selected.has(scene.id)}
+                        onChange={() => setSelected(scene.id)}
+                        id={scene.id}
+                        type='checkbox'
+                      />
+                      <label htmlFor={scene.id}>인물 미사용</label>
+
+                      {image && (
+                        <span className='rounded-full border px-2 py-0.5 '>
+                          {new Date(image.timestamp).toLocaleTimeString()}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <div className='space-y-3'>

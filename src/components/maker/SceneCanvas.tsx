@@ -23,8 +23,15 @@ type Props = {
   setScenesState: React.Dispatch<React.SetStateAction<ScenesState>>;
   images: Map<string, GeneratedImage>;
   clips: Map<string, GeneratedClip>;
+  selected: Set<string>;
   onConfirmScene?: (id: string) => void;
-  onGenerateImage?: (sceneId: string) => void;
+  onGenerateImage?: (
+    sceneId: string,
+    queue?: boolean,
+    opts?: {
+      selected?: boolean;
+    }
+  ) => Promise<void>;
   onConfirmImage?: (imageId: string) => void;
   onGenerateClip?: (
     sceneId: string,
@@ -40,6 +47,7 @@ export const SceneCanvas = ({
   setScenesState,
   images,
   clips,
+  selected,
   onConfirmScene,
   onGenerateImage,
   onConfirmImage,
@@ -114,7 +122,11 @@ export const SceneCanvas = ({
                 <Button
                   size='sm'
                   variant='default'
-                  onClick={() => onGenerateImage?.(scene.id)}
+                  onClick={() =>
+                    onGenerateImage?.(scene.id, false, {
+                      selected: selected.has(scene.id),
+                    })
+                  }
                   disabled={sceneImages?.status === 'pending'}
                 >
                   {sceneImages?.status === 'pending' ? (

@@ -37,10 +37,18 @@ type Props = {
   editingScene: string | number | null;
   addScene: (targetId: string) => void;
   removeScene: (sceneId: string) => Promise<void>;
+  selected: Set<string>;
+  setSelected: (sceneId: string) => void;
 
   // images
   images: Map<string, GeneratedImage>;
-  onGenerateImage: (sceneId: string) => Promise<void>;
+  onGenerateImage: (
+    sceneId: string,
+    queue?: boolean,
+    opts?: {
+      selected?: boolean;
+    }
+  ) => Promise<void>;
   onGenerateAllImages: () => void;
   onConfirmImage: (imgId: string) => void;
   onConfirmAllImages: () => void;
@@ -85,6 +93,8 @@ export default function VisualPipeline({
   isConfirmedAllScenes,
   addScene,
   removeScene,
+  selected,
+  setSelected,
 
   images,
   onGenerateImage,
@@ -262,6 +272,8 @@ export default function VisualPipeline({
                   isConfirmedAllScenes={isConfirmedAllScenes}
                   addScene={addScene}
                   removeScene={removeScene}
+                  selected={selected}
+                  setSelected={setSelected}
                 />
               </div>
             )}
@@ -279,6 +291,8 @@ export default function VisualPipeline({
                   uploadRefImage={uploadRefImage}
                   selectable={true}
                   setIdleSceneImage={setIdleSceneImage}
+                  selected={selected}
+                  setSelected={setSelected}
                 />
               </div>
             )}

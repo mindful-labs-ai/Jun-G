@@ -10,7 +10,7 @@ import {
 } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { HelpCircle, Mic, RefreshCw, RotateCcw } from 'lucide-react';
+import { HelpCircle, Mic, RotateCcw } from 'lucide-react';
 import HeaderBar from '@/components/maker/HeaderBar';
 import NarrationPanel from '@/components/maker/NarrationPanel';
 import ResetDialog from '@/components/maker/ResetDialog';
@@ -62,6 +62,9 @@ export default function MakerPage() {
   const [uploadedImage, setUploadedImage] = useState<UploadedImage | null>(
     null
   );
+  const [selectedSceneIds, setSelectedSceneIds] = useState<Set<string>>(
+    new Set()
+  );
 
   // ai config state
   const customRule = useAIConfigStore(config => config.customRule);
@@ -90,12 +93,13 @@ export default function MakerPage() {
   // audio sim
   const [audioOpen, setAudioOpen] = useState(false);
   const [narrationSettings, setNarrationSettings] = useState<NarrationSettings>(
-    { tempo: 50, tone: 'neutral', voice: 'female', style: 'professional' }
+    { stability: 50, model: 'jB1Cifc2UQbq1gR3wnb0' }
   );
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const playTimerRef = useRef<NodeJS.Timeout | null>(null);
   const HANDLE_W = 40;
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const narrationObjectUrlRef = useRef<string | null>(null);
 
   // queue state
   const imageQueueRef = useRef<string[]>([]);
@@ -206,6 +210,13 @@ export default function MakerPage() {
     if (t.includes('mp4')) return 'mp4';
     if (t.includes('webm')) return 'webm';
     if (t.includes('quicktime') || t.includes('mov')) return 'mov';
+    if (t.includes('audio/mpeg') || t.includes('mpeg')) return 'mp3';
+    if (t.includes('audio/wav') || t.includes('x-wav') || t.includes('wave'))
+      return 'wav';
+    if (t.includes('audio/ogg') || t.includes('application/ogg')) return 'ogg';
+    if (t.includes('audio/webm')) return 'webm';
+    if (t.includes('audio/mp4') || t.includes('m4a') || t.includes('aac'))
+      return 'm4a';
     return 'bin';
   };
 
@@ -221,7 +232,6 @@ export default function MakerPage() {
   };
 
   const blobFromUrlOrDataUrl = async (url: string): Promise<Blob> => {
-    // data: URL은 직접 fetch 가능
     if (url.startsWith('data:')) {
       const res = await fetch(url);
       return await res.blob();
@@ -243,7 +253,6 @@ export default function MakerPage() {
     return String(n).padStart(2, '0');
   };
 
-  // === ZIP 다운로드 로직 ===
   const handleZipDownload = async () => {
     setZipDownloading(true);
     try {
@@ -254,8 +263,10 @@ export default function MakerPage() {
         ([, clip]) => clip.status === 'succeeded' && !!clip.dataUrl
       );
 
-      if (okImages.length === 0 && okClips.length === 0) {
-        notify('다운로드할 완료된 이미지/클립이 없습니다.');
+      const hasNarration = !!(narration && narration.url);
+
+      if (okImages.length === 0 && okClips.length === 0 && !hasNarration) {
+        notify('다운로드할 완료된 이미지/클립/나레이션이 없습니다.');
         return;
       }
 
@@ -264,11 +275,11 @@ export default function MakerPage() {
 
       const imagesFolder = zip.folder('images');
       const clipsFolder = zip.folder('clips');
+      const audioFolder = zip.folder('audio');
 
       const indexOf = (sceneId: string) =>
         Math.max(0, scenesState.order.indexOf(sceneId));
 
-      // 이미지 추가
       await Promise.all(
         okImages.map(async ([sceneId, img]) => {
           const blob = await blobFromUrlOrDataUrl(img.dataUrl!);
@@ -289,12 +300,47 @@ export default function MakerPage() {
         })
       );
 
+      let narrationMeta: {
+        present: boolean;
+        confirmed?: boolean;
+        duration?: number;
+        settings?: any;
+        mimeType?: string;
+        sizeBytes?: number;
+        filename?: string;
+      } = { present: false };
+
+      if (hasNarration) {
+        try {
+          const nBlob = await blobFromUrlOrDataUrl(narration!.url);
+          const nExt = extFromMime(nBlob.type) || 'mp3';
+          const nFile = `narration.${nExt}`;
+          audioFolder!.file(nFile, await nBlob.arrayBuffer());
+
+          narrationMeta = {
+            present: true,
+            confirmed: narration!.confirmed,
+            duration: narration!.duration,
+            settings: narration!.settings ?? null,
+            mimeType: nBlob.type || (null as any),
+            sizeBytes: nBlob.size,
+            filename: `audio/${nFile}`,
+          };
+        } catch (e) {
+          narrationMeta = {
+            present: false,
+          };
+          console.warn('Failed to add narration to zip:', e);
+        }
+      }
+
       const manifest = {
         generatedAt: new Date().toISOString(),
         summary: {
           scenesTotal: scenesState.byId.size,
           imagesSucceeded: okImages.length,
           clipsSucceeded: okClips.length,
+          narrationIncluded: narrationMeta.present,
         },
         scenes: scenes.map(s => ({
           id: s.id,
@@ -319,6 +365,7 @@ export default function MakerPage() {
           providerTaskId: c.taskUrl ?? null,
           error: c.error ?? null,
         })),
+        narration: narrationMeta,
       };
 
       zip.file('manifest.json', JSON.stringify(manifest, null, 2));
@@ -598,6 +645,18 @@ export default function MakerPage() {
     [scenesState, currentSceneId]
   );
 
+  const toggleSelectScene = (sceneId: string) => {
+    setSelectedSceneIds(prev => {
+      const next = new Set(prev);
+      if (next.has(sceneId)) next.delete(sceneId);
+      else next.add(sceneId);
+      return next;
+    });
+  };
+
+  const when = <T extends object>(cond: boolean, extra: T) =>
+    cond ? extra : ({} as Partial<T>);
+
   /* ============ Visual: Scenes / Images / Clips ============ */
   const handleGenerateScenes = async () => {
     if (!script.trim()) return notify('먼저 스크립트를 입력해주세요.');
@@ -647,7 +706,9 @@ export default function MakerPage() {
   };
 
   const handleGenerateImage = useCallback(
-    async (sceneId: string, queue?: boolean) => {
+    async (sceneId: string, queue?: boolean, opts?: { selected?: boolean }) => {
+      const isSelected = !!opts?.selected;
+
       if (!queue) {
         if (!uploadedImage) {
           notify('참조 이미지를 선택해주세요.');
@@ -657,7 +718,6 @@ export default function MakerPage() {
         notify('장면에 대한 이미지를 생성합니다.');
       }
 
-      // 1) pending placeholder 삽입
       const placeholder: GeneratedImage = {
         status: 'pending',
         sceneId,
@@ -671,6 +731,62 @@ export default function MakerPage() {
       });
 
       const prompt = scenesState.byId.get(sceneId)?.imagePrompt;
+
+      if (isSelected) {
+        notify('이건 캐릭터 없어요~');
+        try {
+          const body = {
+            globalStyle: globalStyle,
+            prompt,
+            imageUrl: uploadedImage?.dataUrl,
+            ratio: sourceRatio,
+            resolution: sourceResolution,
+            noCharacter: true,
+          };
+
+          const res = await fetch(`/api/image-gen/gpt/${sceneId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+
+          if (!res.ok) throw new Error('이미지 생성 실패');
+
+          const json = await res.json();
+
+          console.log(json);
+
+          if (json.output[0].result) {
+            setImagesByScene(prev => {
+              const next = new Map(prev);
+              next.set(sceneId, {
+                status: 'succeeded',
+                sceneId,
+                dataUrl: `data:image/png;base64,${json.output[0].result}`,
+                timestamp: Date.now(),
+                confirmed: false,
+              });
+              console.log(next);
+              return next;
+            });
+          } else {
+            throw new Error('Failed to create Image, Please change Prompt.');
+          }
+        } catch (e) {
+          setImagesByScene(prev => {
+            const next = new Map(prev);
+            next.set(sceneId, {
+              status: 'failed',
+              sceneId,
+              timestamp: Date.now(),
+              confirmed: false,
+              error: `생성 실패 : ${e}`,
+            });
+            return next;
+          });
+        }
+        return;
+      }
 
       if (imageAiType === 'gemini') {
         try {
@@ -726,6 +842,7 @@ export default function MakerPage() {
             return next;
           });
         }
+        return;
       }
 
       if (imageAiType === 'gpt') {
@@ -734,6 +851,9 @@ export default function MakerPage() {
             globalStyle: globalStyle,
             prompt,
             imageUrl: uploadedImage?.dataUrl,
+            ratio: sourceRatio,
+            resolution: sourceResolution,
+            noCharacter: false,
           };
 
           const res = await fetch(`/api/image-gen/gpt/${sceneId}`, {
@@ -777,6 +897,7 @@ export default function MakerPage() {
             return next;
           });
         }
+        return;
       }
     },
     [
@@ -791,12 +912,11 @@ export default function MakerPage() {
 
   const startImageQueue = useCallback(
     (intervalMs = 500) => {
-      if (imageQueueTimerRef.current) return; // 이미 동작 중이면 무시
+      if (imageQueueTimerRef.current) return;
 
       imageQueueTimerRef.current = setInterval(() => {
         const nextId = imageQueueRef.current.shift();
 
-        // 큐가 비면 종료
         if (!nextId) {
           clearInterval(imageQueueTimerRef.current!);
           imageQueueTimerRef.current = null;
@@ -804,21 +924,18 @@ export default function MakerPage() {
           return;
         }
 
-        // 응답 대기 없이 발사
-        void handleGenerateImage(nextId, /* fromBatch */ true);
+        const isSelected = selectedSceneIds.has(nextId);
+        void handleGenerateImage(nextId, true, { selected: isSelected });
       }, intervalMs);
     },
-    [handleGenerateImage]
+    [handleGenerateImage, selectedSceneIds]
   );
 
   const enqueueImageId = useCallback(
     (sceneId: string) => {
-      // 진행 중이거나 이미 성공한 씬은 스킵
       const img = imagesByScene.get(sceneId);
-      if (img && (img.status === 'pending' || img.status === 'succeeded'))
-        return;
+      if (img && img.status === 'pending') return;
 
-      // 중복 enque 방지
       if (imageQueuedSetRef.current.has(sceneId)) return;
 
       imageQueuedSetRef.current.add(sceneId);
@@ -973,7 +1090,6 @@ export default function MakerPage() {
           return;
         }
       }
-      // 1) pending placeholder 삽입
       const placeholder: GeneratedClip = {
         status: 'pending',
         sceneId,
@@ -990,7 +1106,6 @@ export default function MakerPage() {
 
       if (!prompt) return notify('프롬프트가 비었습니다.');
 
-      // kling 요청 보내기
       if (aiType === 'kling') {
         try {
           const body = {
@@ -1045,7 +1160,6 @@ export default function MakerPage() {
         }
       }
 
-      // seedance 요청 보내기
       if (aiType === 'seedance') {
         try {
           const body = {
@@ -1101,7 +1215,6 @@ export default function MakerPage() {
 
   const enqueueClipJob = useCallback(
     (job: ClipJob) => {
-      // 이미 진행/대기/완료인 씬은 스킵
       const c = clipsByScene.get(job.sceneId);
       if (
         c &&
@@ -1111,7 +1224,6 @@ export default function MakerPage() {
       ) {
         return;
       }
-      // 같은 sceneId 중복 enqueue 방지
       if (clipQueuedSetRef.current.has(job.sceneId)) return;
 
       clipQueuedSetRef.current.add(job.sceneId);
@@ -1122,12 +1234,11 @@ export default function MakerPage() {
 
   const startClipQueue = useCallback(
     (intervalMs = 500) => {
-      if (clipQueueTimerRef.current) return; // 이미 동작 중이면 무시
+      if (clipQueueTimerRef.current) return;
 
       clipQueueTimerRef.current = setInterval(() => {
         const next = clipQueueRef.current.shift();
 
-        // 큐가 비면 정지 + 리셋
         if (!next) {
           clearInterval(clipQueueTimerRef.current!);
           clipQueueTimerRef.current = null;
@@ -1135,8 +1246,7 @@ export default function MakerPage() {
           return;
         }
 
-        // 응답 기다리지 않고 발사
-        void handleGenerateClip(next.sceneId, next.aiType, /* queue */ true);
+        void handleGenerateClip(next.sceneId, next.aiType, true);
       }, intervalMs);
     },
     [handleGenerateClip]
@@ -1382,58 +1492,139 @@ export default function MakerPage() {
   }, []);
 
   /* ============ Audio: Narration ============ */
+  const replaceObjectUrl = (url: string) => {
+    if (narrationObjectUrlRef.current) {
+      try {
+        URL.revokeObjectURL(narrationObjectUrlRef.current);
+      } catch {}
+    }
+    narrationObjectUrlRef.current = url;
+  };
+
+  const ensureAudio = () => {
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+      audioRef.current.addEventListener('play', () => setIsPlaying(true));
+      audioRef.current.addEventListener('pause', () => setIsPlaying(false));
+      audioRef.current.addEventListener('timeupdate', () => {
+        setCurrentTime(Math.floor(audioRef.current!.currentTime || 0));
+      });
+      audioRef.current.addEventListener('ended', () => {
+        setIsPlaying(false);
+        setCurrentTime(0);
+      });
+    }
+    return audioRef.current;
+  };
+
   const handleGenerateNarration = async () => {
     if (!script.trim()) return notify('먼저 스크립트를 입력해주세요.');
     setGeneratingNarration(true);
-    await new Promise(r => setTimeout(r, 1500 + Math.random() * 2000)); // stub
-    const newNarration: GeneratedNarration = {
-      id: nowId('narration'),
-      url: `/placeholder.svg?height=100&width=300&query=audio-waveform`,
-      duration: Math.floor(script.length / 10) + 30,
-      settings: { ...narrationSettings },
-      confirmed: false,
-    };
-    setNarration(newNarration);
-    setGeneratingNarration(false);
-    setCurrentTime(0);
-    setIsPlaying(false);
-    notify(`${newNarration.duration}초 나레이션이 생성되었습니다.`);
+
+    try {
+      const res = await fetch('/api/narration', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          voiceId: narrationSettings.model,
+          text: script,
+          stability: narrationSettings?.stability
+            ? Math.max(0, Math.min(1, narrationSettings.stability / 100))
+            : 0.5,
+        }),
+      });
+
+      if (!res.ok) {
+        let msg = '나레이션 생성에 실패했습니다.';
+        try {
+          const j = await res.json();
+          msg = j?.error || msg;
+        } catch {}
+        throw new Error(msg);
+      }
+
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+
+      const probe = new Audio();
+      const duration = await new Promise<number>((resolve, reject) => {
+        probe.src = objectUrl;
+        probe.addEventListener(
+          'loadedmetadata',
+          () => {
+            resolve(Math.max(1, Math.floor(probe.duration || 0)));
+          },
+          { once: true }
+        );
+        probe.addEventListener(
+          'error',
+          () => reject(new Error('오디오 메타데이터 로딩 실패')),
+          { once: true }
+        );
+      });
+
+      replaceObjectUrl(objectUrl);
+
+      const newNarration: GeneratedNarration = {
+        id: nowId('narration'),
+        url: objectUrl,
+        duration,
+        settings: { ...narrationSettings },
+        confirmed: false,
+      };
+      setNarration(newNarration);
+
+      const audio = ensureAudio();
+      audio.src = objectUrl;
+      audio.currentTime = 0;
+
+      setCurrentTime(0);
+      setIsPlaying(false);
+      notify(`${duration}초 나레이션이 생성되었습니다.`);
+    } catch (e: any) {
+      console.error(e);
+      notify(e?.message ?? '나레이션 생성 중 오류가 발생했습니다.');
+    } finally {
+      setGeneratingNarration(false);
+    }
   };
 
   const togglePlay = () => {
-    if (!narration) return;
-    if (isPlaying) {
-      if (playTimerRef.current) clearInterval(playTimerRef.current);
-      setIsPlaying(false);
-      return;
+    if (!narration?.url) return notify('나레이션이 없습니다.');
+    const audio = ensureAudio();
+
+    if (audio.src !== narration.url) {
+      audio.src = narration.url;
+      audio.currentTime = currentTime || 0;
     }
-    setIsPlaying(true);
-    playTimerRef.current = setInterval(() => {
-      setCurrentTime(prev => {
-        if (!narration) return 0;
-        if (prev >= narration.duration) {
-          if (playTimerRef.current) clearInterval(playTimerRef.current);
-          setIsPlaying(false);
-          return 0;
-        }
-        return prev + 1;
-      });
-    }, 1000);
+
+    if (audio.paused) {
+      audio.currentTime = currentTime || 0;
+      void audio.play();
+    } else {
+      audio.pause();
+    }
+  };
+
+  const seekNarration = (sec: number) => {
+    if (!narration) return;
+    const audio = ensureAudio();
+    if (audio.src !== narration.url) {
+      audio.src = narration.url;
+    }
+    const clamped = Math.max(0, Math.min(sec, narration.duration));
+    audio.currentTime = clamped;
+    setCurrentTime(Math.floor(clamped));
   };
 
   const downloadNarration = () => {
-    if (!narration) return;
-    const blob = new Blob(['AI 생성 나레이션 오디오 파일'], {
-      type: 'audio/mp3',
-    });
-    const url = URL.createObjectURL(blob);
+    if (!narration?.url) return;
     const a = document.createElement('a');
-    a.href = url;
+    a.href = narration.url;
     a.download = 'narration.mp3';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
     notify('나레이션 파일이 다운로드되었습니다.');
   };
 
@@ -1442,6 +1633,20 @@ export default function MakerPage() {
     setNarration({ ...narration, confirmed: true });
     notify('나레이션이 확정되었습니다.');
   };
+
+  useEffect(() => {
+    return () => {
+      try {
+        audioRef.current?.pause();
+      } catch {}
+      if (narrationObjectUrlRef.current) {
+        try {
+          URL.revokeObjectURL(narrationObjectUrlRef.current);
+        } catch {}
+        narrationObjectUrlRef.current = null;
+      }
+    };
+  }, []);
 
   /* ============ Global actions ============ */
   const resetAll = () => {
@@ -1500,6 +1705,8 @@ export default function MakerPage() {
             editingScene={editingScene}
             addScene={insertSceneAfter}
             removeScene={removeScene}
+            selected={selectedSceneIds}
+            setSelected={toggleSelectScene}
             // images
             images={imagesByScene}
             uploadRefImage={setUploadedImage}
@@ -1536,6 +1743,7 @@ export default function MakerPage() {
             images={imagesByScene}
             clips={clipsByScene}
             onConfirmScene={confirmScene}
+            selected={selectedSceneIds}
             onGenerateImage={handleGenerateImage}
             onConfirmImage={confirmImage}
             onGenerateClip={handleGenerateClip}
@@ -1602,6 +1810,7 @@ export default function MakerPage() {
                 onPlayPause={togglePlay}
                 onDownload={downloadNarration}
                 onConfirm={confirmNarration}
+                onSeek={seekNarration}
               />
             </div>
           </div>
