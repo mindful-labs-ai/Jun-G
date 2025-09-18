@@ -109,8 +109,8 @@ export default function NarrationPanel({
               <SelectItem value='3JDquces8E8bkmvbh6Bc'>
                 Otani(일본어 모델)
               </SelectItem>
-              <SelectItem value='Bj9UqZbhQsanLzgalpEG'>
-                Austin(영어 모델)
+              <SelectItem value='dPah2VEoifKnZT37774q'>
+                Knox Dark 2(영어 모델)
               </SelectItem>
             </SelectContent>
           </Select>
