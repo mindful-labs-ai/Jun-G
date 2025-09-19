@@ -363,6 +363,9 @@ export const GifStudio = () => {
   // UI
   return (
     <div className='w-full h-[calc(100dvh-2rem)] mx-auto p-3 md:p-4'>
+      <div className='w-full text-center border rounded-xl p-3 mb-2 bg-white/80 shadow-sm'>
+        <h1 className='text-2xl text-card-foreground font-bold'>GIF 메이커</h1>
+      </div>
       {/* 3‑pane layout */}
       <div className='grid grid-cols-12 gap-4 h-full'>
         {/* Left Sidebar — Settings */}

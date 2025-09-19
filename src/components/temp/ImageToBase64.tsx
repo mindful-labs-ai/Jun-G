@@ -204,7 +204,7 @@ export function GeminiImageWithUpload() {
   };
 
   return (
-    <div className='w-full max-w-6xl mx-auto p-6 space-y-6'>
+    <div className='w-full max-w-6xl mx-auto px-6 py-18 space-y-6'>
       <div className='grid md:grid-cols-2 gap-6'>
         {/* Left: drop zone + list */}
         <div className='space-y-4'>
