@@ -9,14 +9,14 @@ const client = new OpenAI({ apiKey: process.env.OPENAI_SCRIPT_API_KEY! });
 
 export async function POST(req: NextRequest) {
   try {
-    const { script, customRule } = await req.json();
+    const { script, customRule, globalStyle } = await req.json();
     if (!script || !script.trim()) {
       return Response.json({ error: 'script is required' }, { status: 400 });
     }
 
     const response = await client.responses.create({
       model: 'gpt-4.1',
-      input: scenePrompt(script, customRule),
+      input: scenePrompt(script, customRule, globalStyle),
     });
 
     console.log(response);

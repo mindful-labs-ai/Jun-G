@@ -672,7 +672,7 @@ export default function MakerPage() {
       const res = await fetch('/api/scenes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ script, customRule }),
+        body: JSON.stringify({ script, customRule, globalStyle }),
       });
       if (!res.ok) {
         const { error } = await res.json();
@@ -1683,6 +1683,7 @@ export default function MakerPage() {
         zipDownloading={zipDownloading}
         onZip={handleZipDownload}
       />
+      <Button onClick={() => console.log(scenesState)}>테스트</Button>
 
       <main className='container mx-auto px-4 py-6'>
         <div className='grid grid-cols-1 gap-6 mb-2'>
@@ -1837,6 +1838,10 @@ export default function MakerPage() {
               >
                 <HelpCircle className='w-4 h-4' />
                 도움말
+              </Button>
+
+              <Button onClick={() => applyScenes(tempScenes)}>
+                장면 임시 만들기
               </Button>
             </div>
 

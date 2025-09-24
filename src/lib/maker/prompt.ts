@@ -1,4 +1,8 @@
-export const scenePrompt = (script: string, customRule: string) => `
+export const scenePrompt = (
+  script: string,
+  customRule: string,
+  globalStyle: string
+) => `
 [Role]
 You are a master director. Split the SCRIPT into video-ready scenes and, for each scene, fill the structured fields to directly generate a still image and a short clip.
 Return **ONLY** a JSON array (no prose, no markdown).
@@ -17,7 +21,7 @@ Return **ONLY** a JSON array (no prose, no markdown).
 
     "imagePrompt": {
       "intent": "<Scene purpose & dominant emotion in ≤12 words>",
-      "img_style": "<Single global visual style. Keep consistent with any given reference. No readable text/logos/watermarks.>",
+      "img_style": "${globalStyle}",
       "camera": {
         "shot_type": "<close-up | medium | long (pick one)>",
         "angle": "<camera angle/tilt relative to subject; keep stable unless intent requires change>",
@@ -104,12 +108,13 @@ Return **ONLY** a JSON array (no prose, no markdown).
 [Population rules — map to the JSON fields]
 - **englishPrompt**: single compact line in English; must literally include **"this character"**; no sizes/aspect ratios/resolution.
 - **imagePrompt.subject**: write actions/appearance so the subject clearly refers to **"this character"** (the literal phrase must appear at least once in subject/pose/hands/gaze or in englishPrompt).
-- **imagePrompt.img_style / background.props**: strictly brand-free; no readable UI text/logos/watermarks anywhere.
+- **background.props**: strictly brand-free; no readable UI text/logos/watermarks anywhere.
 - **imagePrompt.camera.focal_length**: one value in mm (e.g., "50mm"); infer DOF via **background.dof**.
 - **Variety hooks**: Prefer changing **shot_type / angle / focal_length / subject.pose / lighting.key** between adjacent scenes to avoid repetition.
 - **clipPrompt.subject_motion**: provide **2–4** entries total; ascending **time** strings (e.g., "0.0s", "1.2s"); each **action** references **"this character"** with subtle, realistic micro-movements (blink, breath, hair/fabric ripple, small glance/shift).
 - **camera_motion**: pick **one** clear type; pair with an **easing** curve.
 - **environment_motion**: **0–2** subtle items max; physically plausible; consistent with still (e.g., light flicker, gentle steam, screen glow, dust motes).
+- **img_style**: as entered.
 
 [Prohibitions]
 - No sizes, aspect ratios, pixel counts, 4K/UHD labels.
