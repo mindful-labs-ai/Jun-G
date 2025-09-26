@@ -1,5 +1,5 @@
 import { scenePrompt } from '@/lib/maker/prompt';
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
 export const runtime = 'nodejs';
@@ -23,9 +23,14 @@ export async function POST(req: NextRequest) {
 
     const saver = response.output_text;
 
-    return Response.json(JSON.parse(saver));
+    const tokenUsage = response.usage?.total_tokens;
+
+    return NextResponse.json({
+      text: JSON.parse(saver),
+      usage: tokenUsage,
+    });
   } catch (err) {
     console.error(err);
-    return Response.json({ error: err }, { status: 500 });
+    return NextResponse.json({ error: err }, { status: 500 });
   }
 }

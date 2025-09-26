@@ -1,7 +1,8 @@
 export const sceneRegeneratePrompt = (
   script: string,
   customRule: string,
-  sceneExplain: string
+  sceneExplain: string,
+  globalStyle: string
 ) => `
 [Role]
 You are a master director. Using the full SCRIPT for context and SCENE-EXPLAIN for intent,
@@ -32,7 +33,7 @@ Return **ONLY** one JSON object (no prose, no markdown).
 
   "imagePrompt": {
       "intent": "<Scene purpose & dominant emotion in ≤12 words>",
-      "img_style": "<Single global visual style. Keep consistent with any given reference. No readable text/logos/watermarks.>",
+      "img_style": "${globalStyle}",
       "camera": {
         "shot_type": "<medium | long (pick one)>",
         "angle": "<camera angle/tilt relative to subject; keep stable unless intent requires change>",
@@ -85,7 +86,7 @@ Return **ONLY** one JSON object (no prose, no markdown).
 - **imagePrompt.subject** or **clipPrompt.subject_motion.action** must explicitly reference **"this character"**.
 - **focal_length**: a single mm value; depth via **background.dof**.
 - **subject_motion**: provide **2–4** total items; times are ascending strings with "s" suffix.
-- 
+- **img_style**: as entered.
 
 [Prohibitions]
 - No brand names, readable text, UI strings, or watermarks.

@@ -50,7 +50,7 @@ export interface CaptionResult {
   generated_by?: string;
 }
 
-export default function InstagPage() {
+export const InstagHelper = () => {
   const [mode, setMode] = useState<'reply' | 'caption'>('reply');
 
   const [options, setOptions] = useState<GenerateOptions>({
@@ -292,4 +292,6 @@ export default function InstagPage() {
       {mode === 'reply' ? ReplyUI : CaptionUI}
     </div>
   );
-}
+};
+
+export default InstagHelper;

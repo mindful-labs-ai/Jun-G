@@ -2,6 +2,8 @@ import { useCallback, useState } from 'react';
 import type { Scene, ScenesState } from '@/lib/maker/types';
 import { notify } from '@/lib/maker/utils';
 import { Button } from '../ui/button';
+import { useAIConfigStore } from '@/lib/maker/useAiConfigStore';
+import { reportUsage } from '@/lib/shared/usage';
 
 type Props = {
   sceneId: string;
@@ -20,6 +22,7 @@ export const SingleSceneRegenerator = ({
 }: Props) => {
   const [explain, setExplain] = useState('');
   const [loading, setLoading] = useState(false);
+  const globalStyle = useAIConfigStore(s => s.globalStyle);
 
   const regenerate = useCallback(async () => {
     const sceneExplain = (explain ?? '').trim();
@@ -29,11 +32,13 @@ export const SingleSceneRegenerator = ({
     }
 
     setLoading(true);
+
+    let tokenUsage;
     try {
       const res = await fetch('/api/scenes/regenerate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ script, customRule, sceneExplain }),
+        body: JSON.stringify({ script, customRule, sceneExplain, globalStyle }),
       });
 
       if (!res.ok) {
@@ -41,7 +46,9 @@ export const SingleSceneRegenerator = ({
         throw new Error(error ?? '부분 재생성 실패');
       }
 
-      const regenerated: Partial<Scene> = await res.json();
+      const { text, usage } = await res.json();
+
+      tokenUsage = usage;
 
       setScenesState(prev => {
         const old = prev.byId.get(sceneId);
@@ -49,7 +56,7 @@ export const SingleSceneRegenerator = ({
         const byId = new Map(prev.byId);
         byId.set(sceneId, {
           ...old,
-          ...regenerated,
+          ...text,
           id: sceneId,
           originalText: '(추가된 장면)',
           confirmed: false,
@@ -62,6 +69,7 @@ export const SingleSceneRegenerator = ({
       notify(String(e));
     } finally {
       setLoading(false);
+      await reportUsage('oneScene', tokenUsage, 1);
     }
   }, [explain, script, customRule, sceneId, setScenesState]);
 

@@ -22,9 +22,9 @@ export const SideHamburger = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const links = [
-    { href: '/', label: '숏폼 메이커' },
+    { href: '/makerScript', label: '숏폼 메이커' },
     { href: '/insta', label: '인스타 댓글/캡션' },
-    { href: '/gemini', label: '단일 이미지 메이커' },
+    { href: '/image', label: '단일 이미지 메이커' },
     { href: '/video', label: '단일 비디오 메이커' },
     { href: '/gif', label: 'gif 메이커' },
   ];

@@ -11,6 +11,8 @@ import {
   TaskResponse,
 } from '@/app/api/seedance/clip-gen/[id]/route';
 import { KlingImageToVideoResponse } from '@/app/api/kling/clip-gen/[id]/route';
+import { notify } from '@/lib/gif/utils';
+import { reportUsage } from '@/lib/shared/usage';
 
 interface UploadedImage {
   name: string;
@@ -27,7 +29,7 @@ interface CalledVideoInfo {
 
 type Ratio = '16:9' | '4:3' | '1:1' | '3:4' | '9:16';
 
-export function GenerateVideoWithUpload() {
+export const GenerateVideoWithUpload = () => {
   const [uploadedFirstFrame, setUploadedFirstFrame] =
     useState<UploadedImage | null>(null);
   const [uploadedLastFrame, setUploadedLastFrame] =
@@ -296,22 +298,43 @@ export function GenerateVideoWithUpload() {
 
       const jsonData = (await response.json()) as TaskResponse;
 
-      const videoUrl = jsonData.content.video_url ?? [];
-      if (videoUrl === undefined || jsonData.status !== 'succeeded') return;
+      if (jsonData.status === 'failed' || jsonData.status === 'cancled') {
+        throw new Error(`AI Error : ${jsonData.error}`);
+      }
 
-      setGeneratedClips(prev => {
-        const next = [
-          ...prev,
-          {
-            aiType: 'KLING',
-            id: jsonData.id,
-            url: videoUrl,
-          },
-        ];
-        console.log(next);
-        console.log(jsonData);
-        return next;
-      });
+      if (jsonData.status === 'queued') {
+        notify('요청 대기 중 입니다.');
+      }
+
+      if (jsonData.status === 'running') {
+        notify('클립 생성 중 입니다.');
+      }
+
+      if (jsonData.status === 'succeeded') {
+        const tokenUsage = jsonData.usage?.total_tokens;
+
+        const videoUrl = jsonData.content.video_url ?? [];
+        if (videoUrl === undefined || jsonData.status !== 'succeeded') return;
+
+        if (videoUrl === undefined) {
+          throw new Error('클립 생성 실패');
+        }
+
+        setGeneratedClips(prev => {
+          const next = [
+            ...prev,
+            {
+              aiType: 'KLING',
+              id: jsonData.id,
+              url: videoUrl,
+            },
+          ];
+          console.log(next);
+          console.log(jsonData);
+          return next;
+        });
+        await reportUsage('clipSeedance', tokenUsage, 1);
+      }
     }
   };
 
@@ -617,4 +640,4 @@ export function GenerateVideoWithUpload() {
       )}
     </div>
   );
-}
+};

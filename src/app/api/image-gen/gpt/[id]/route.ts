@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { ResponseCreateParamsNonStreaming } from 'openai/resources/responses/responses.mjs';
 
@@ -54,11 +54,13 @@ export async function POST(request: NextRequest) {
       openAiBody as ResponseCreateParamsNonStreaming
     );
 
+    const tokenUsage = response.usage?.total_tokens;
+
     console.log(response);
 
-    return Response.json(response);
+    return NextResponse.json({ response: response, token: tokenUsage });
   } catch (err) {
     console.error(err);
-    return Response.json({ error: err }, { status: 500 });
+    return NextResponse.json({ error: err }, { status: 500 });
   }
 }

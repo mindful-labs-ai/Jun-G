@@ -2,6 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { Button } from '../ui/button';
+import { createClient } from '@/lib/supabase/client';
+import { Separator } from '../ui/separator';
+import { useAuthStore } from '@/lib/shared/useAuthStore';
 
 type SidebarProps = {
   id?: string;
@@ -12,7 +16,8 @@ type SidebarProps = {
 
 export const Sidebar = ({ id, open, onClose, links }: SidebarProps) => {
   const pathname = usePathname();
-
+  const supabase = createClient();
+  const userEmail = useAuthStore(s => s.userEmail);
   return (
     <>
       <div
@@ -53,24 +58,54 @@ export const Sidebar = ({ id, open, onClose, links }: SidebarProps) => {
           </button>
         </div>
 
-        <nav className='p-2'>
-          {links.map(link => {
-            const active = pathname === link.href;
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={[
-                  'block rounded-md px-3 py-2 text-sm transition-colors',
-                  active
-                    ? 'bg-accent text-accent-foreground'
-                    : 'hover:bg-muted',
-                ].join(' ')}
+        <nav className='p-2 h-full'>
+          <div className='p-2 flex flex-col justify-center'>
+            {!!userEmail ? (
+              <>
+                <p className='text-lg'>안녕하세요!</p>
+                <p className='text-sm'>
+                  <strong>{userEmail}</strong>님
+                </p>
+                <Button
+                  className='mt-6'
+                  onClick={() => supabase.auth.signOut()}
+                >
+                  로그아웃
+                </Button>
+              </>
+            ) : (
+              <Button
+                onClick={() => {
+                  supabase.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: { redirectTo: `${location.origin}/auth/callback` },
+                  });
+                }}
               >
-                {link.label}
-              </Link>
-            );
-          })}
+                로그인하기
+              </Button>
+            )}
+          </div>
+          <Separator className='my-2' />
+          <div>
+            {links.map(link => {
+              const active = pathname === link.href;
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={[
+                    'block rounded-md px-3 py-2 text-sm transition-colors',
+                    active
+                      ? 'bg-accent text-accent-foreground'
+                      : 'hover:bg-muted',
+                  ].join(' ')}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+          </div>
         </nav>
       </aside>
     </>

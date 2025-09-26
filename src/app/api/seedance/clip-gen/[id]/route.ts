@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -23,8 +24,9 @@ export interface ImageToVideoRequest {
   baseImage: string;
   resolution: number;
   ratio: string;
-  lastImage: string;
+  lastImage?: string;
   liteModel?: boolean;
+  noSubject?: boolean;
 }
 
 export interface SeeDanceImageToVideoResponse {
@@ -80,6 +82,20 @@ export async function POST(request: NextRequest) {
               url: body.lastImage,
             },
             role: 'last_frame',
+          },
+        ]
+      : body.noSubject
+      ? [
+          {
+            type: 'text',
+            text: `Generate no person, no subject, no character, no hands video ${body.prompt} --resolution ${body.resolution}p --ratio ${body.ratio}`,
+          },
+          {
+            type: 'image_url',
+            image_url: {
+              url: body.baseImage,
+            },
+            role: 'first_frame',
           },
         ]
       : [

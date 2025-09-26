@@ -33,17 +33,20 @@ import { tempScenes } from '@/components/temp/tempJson';
 import {
   SeeDanceImageToVideoResponse,
   TaskResponse,
-} from '../api/seedance/clip-gen/[id]/route';
-import { KlingImageToVideoResponse } from '../api/kling/clip-gen/[id]/route';
-import { KlingImageToVideoStatusResponse } from '../api/kling/[id]/route';
+} from '../../app/api/seedance/clip-gen/[id]/route';
+import { KlingImageToVideoResponse } from '../../app/api/kling/clip-gen/[id]/route';
+import { KlingImageToVideoStatusResponse } from '../../app/api/kling/[id]/route';
 import { useAIConfigStore } from '@/lib/maker/useAiConfigStore';
 import ConfigModal from '@/components/maker/ConfigModal';
 import { buildClipPromptText } from '@/lib/maker/clipPromptBuilder';
+import { useAuthStore } from '@/lib/shared/useAuthStore';
+import { reportUsage } from '@/lib/shared/usage';
 
 type ClipJob = { sceneId: string; aiType: 'kling' | 'seedance' };
 
-export default function MakerPage() {
+export const ShortFormMaker = () => {
   const router = useRouter();
+  const user = useAuthStore(s => s.tokenUsage);
 
   // core state
   const [script, setScript] = useState('');
@@ -667,6 +670,8 @@ export default function MakerPage() {
     )
       return;
 
+    let tokenUsage;
+
     try {
       setGeneratingScenes(true);
       const res = await fetch('/api/scenes', {
@@ -678,14 +683,17 @@ export default function MakerPage() {
         const { error } = await res.json();
         throw new Error(error ?? '생성 실패');
       }
-      const list: Scene[] = await res.json();
-      applyScenes(list);
-      console.log(list);
-      notify(`${list.length}개의 장면이 생성되었습니다.`);
+      const { text, usage }: { text: Scene[]; usage: number } =
+        await res.json();
+      applyScenes(text);
+      console.log(text);
+      notify(`${text.length}개의 장면이 생성되었습니다.`);
+      tokenUsage = usage;
     } catch (error) {
       notify(String(error));
     } finally {
       setGeneratingScenes(false);
+      await reportUsage('allScene', tokenUsage!, 1);
     }
   };
 
@@ -733,6 +741,7 @@ export default function MakerPage() {
       const prompt = scenesState.byId.get(sceneId)?.imagePrompt;
 
       if (isSelected) {
+        let tokenUsage;
         try {
           const body = {
             globalStyle: globalStyle,
@@ -751,17 +760,19 @@ export default function MakerPage() {
 
           if (!res.ok) throw new Error('이미지 생성 실패');
 
-          const json = await res.json();
+          const { response, token } = await res.json();
 
-          console.log(json);
+          tokenUsage = token;
 
-          if (json.output[0].result) {
+          console.log(response);
+
+          if (response.output[0].result) {
             setImagesByScene(prev => {
               const next = new Map(prev);
               next.set(sceneId, {
                 status: 'succeeded',
                 sceneId,
-                dataUrl: `data:image/png;base64,${json.output[0].result}`,
+                dataUrl: `data:image/png;base64,${response.output[0].result}`,
                 timestamp: Date.now(),
                 confirmed: false,
               });
@@ -783,11 +794,14 @@ export default function MakerPage() {
             });
             return next;
           });
+        } finally {
+          await reportUsage('imageGPT', tokenUsage, 1);
         }
         return;
       }
 
       if (imageAiType === 'gemini') {
+        let token;
         try {
           const body = {
             globalStyle: globalStyle,
@@ -809,6 +823,8 @@ export default function MakerPage() {
           if (!res.ok) throw new Error('이미지 생성 실패');
 
           const json = await res.json();
+
+          token = json.tokenUsage;
 
           console.log(json);
 
@@ -840,11 +856,14 @@ export default function MakerPage() {
             });
             return next;
           });
+        } finally {
+          await reportUsage('imageGemini', token, 1);
         }
         return;
       }
 
       if (imageAiType === 'gpt') {
+        let tokenUsage;
         try {
           const body = {
             globalStyle: globalStyle,
@@ -863,17 +882,19 @@ export default function MakerPage() {
 
           if (!res.ok) throw new Error('이미지 생성 실패');
 
-          const json = await res.json();
+          const { response, token } = await res.json();
 
-          console.log(json);
+          tokenUsage = token;
 
-          if (json.output[0].result) {
+          console.log(response);
+
+          if (response.output[0].result) {
             setImagesByScene(prev => {
               const next = new Map(prev);
               next.set(sceneId, {
                 status: 'succeeded',
                 sceneId,
-                dataUrl: `data:image/png;base64,${json.output[0].result}`,
+                dataUrl: `data:image/png;base64,${response.output[0].result}`,
                 timestamp: Date.now(),
                 confirmed: false,
               });
@@ -895,6 +916,8 @@ export default function MakerPage() {
             });
             return next;
           });
+        } finally {
+          await reportUsage('imageGPT', tokenUsage, 1);
         }
         return;
       }
@@ -1350,6 +1373,8 @@ export default function MakerPage() {
         if (json.status === 'succeeded') {
           const videoUrl = json.content?.video_url ?? [];
 
+          const tokenUsage = json.usage?.total_tokens ?? 0;
+
           if (videoUrl === undefined) {
             throw new Error('클립 생성 실패');
           }
@@ -1367,6 +1392,7 @@ export default function MakerPage() {
             console.log(next);
             return next;
           });
+          await reportUsage('clipSeedance', tokenUsage, 1);
         }
       } catch (error) {
         setClipsByScene(prev => {
@@ -1683,6 +1709,14 @@ export default function MakerPage() {
         zipDownloading={zipDownloading}
         onZip={handleZipDownload}
       />
+      <Button
+        onClick={() => {
+          console.log(scenesState);
+          console.log(user);
+        }}
+      >
+        테스트
+      </Button>
 
       <main className='container mx-auto px-4 py-6'>
         <div className='grid grid-cols-1 gap-6 mb-2'>
@@ -1838,6 +1872,10 @@ export default function MakerPage() {
                 <HelpCircle className='w-4 h-4' />
                 도움말
               </Button>
+
+              <Button onClick={() => applyScenes(tempScenes)}>
+                장면 임시 만들기
+              </Button>
             </div>
 
             <div className='text-sm text-muted-foreground mr-8'>
@@ -1871,4 +1909,6 @@ export default function MakerPage() {
       <ConfigModal />
     </div>
   );
-}
+};
+
+export default ShortFormMaker;

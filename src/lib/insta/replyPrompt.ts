@@ -1,4 +1,4 @@
-import { GenerateOptions } from '@/app/insta/page';
+import { GenerateOptions } from '@/app/(authRequire)/insta/page';
 
 export const buildInstagramReplyPrompt = (
   raw: string,

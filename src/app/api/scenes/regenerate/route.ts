@@ -1,5 +1,5 @@
 import { sceneRegeneratePrompt } from '@/lib/maker/regeneratePrompt';
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
 export const runtime = 'nodejs';
@@ -9,7 +9,7 @@ const client = new OpenAI({ apiKey: process.env.OPENAI_SCRIPT_API_KEY! });
 
 export async function POST(req: NextRequest) {
   try {
-    const { script, customRule, sceneExplain } = await req.json();
+    const { script, customRule, sceneExplain, globalStyle } = await req.json();
     if (!script || !script.trim()) {
       return Response.json({ error: 'script is required' }, { status: 400 });
     }
@@ -23,16 +23,26 @@ export async function POST(req: NextRequest) {
 
     const response = await client.responses.create({
       model: 'gpt-4.1',
-      input: sceneRegeneratePrompt(script, customRule, sceneExplain),
+      input: sceneRegeneratePrompt(
+        script,
+        customRule,
+        sceneExplain,
+        globalStyle
+      ),
     });
 
     console.log(response);
 
     const saver = response.output_text;
 
-    return Response.json(JSON.parse(saver));
+    const tokenUsage = response.usage?.total_tokens;
+
+    return NextResponse.json({
+      text: saver,
+      usage: tokenUsage,
+    });
   } catch (err) {
     console.error(err);
-    return Response.json({ error: err }, { status: 500 });
+    return NextResponse.json({ error: err }, { status: 500 });
   }
 }

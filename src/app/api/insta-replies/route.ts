@@ -1,4 +1,4 @@
-import { AIReplyItem } from '@/app/insta/page';
+import { AIReplyItem } from '@/app/(authRequire)/insta/page';
 import { buildInstagramReplyPrompt } from '@/lib/insta/replyPrompt';
 import { NextRequest } from 'next/server';
 import OpenAI from 'openai';

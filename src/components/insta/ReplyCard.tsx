@@ -1,7 +1,7 @@
 'use client';
-import { AIReplyItem } from '@/app/insta/page';
 import { Button } from '../ui/button';
 import { useState } from 'react';
+import { AIReplyItem } from './InstaHelper';
 
 const copy = async (text: string) => {
   await navigator.clipboard.writeText(text);

@@ -14,6 +14,7 @@ import {
   Star,
 } from 'lucide-react';
 import { notify } from '@/lib/maker/utils';
+import { reportUsage } from '@/lib/shared/usage';
 
 interface ImageAsset {
   id: string;
@@ -31,7 +32,7 @@ interface GeneratedImage {
   timestamp: Date;
 }
 
-export function GeminiImageWithUpload() {
+export const GenerateImageWithGemini = () => {
   const [assets, setAssets] = useState<ImageAsset[]>([]);
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -147,6 +148,7 @@ export function GeminiImageWithUpload() {
   };
 
   const generateWithGemini = async () => {
+    let tokenUsage;
     try {
       if (!prompt.trim()) {
         setError('프롬프트를 입력하세요.');
@@ -171,6 +173,8 @@ export function GeminiImageWithUpload() {
 
       const data = await res.json();
 
+      tokenUsage = data.tokenUsage;
+
       console.log(data);
 
       if (!data.success) {
@@ -191,6 +195,59 @@ export function GeminiImageWithUpload() {
       setError(err?.message || '알 수 없는 오류');
     } finally {
       setIsGenerating(false);
+      await reportUsage('imageGemini', tokenUsage, 1);
+    }
+  };
+
+  const generateImageToText = async () => {
+    let tokenUsage;
+    try {
+      if (!prompt.trim()) {
+        setError('프롬프트를 입력하세요.');
+        return;
+      }
+      setIsGenerating(true);
+      setError(null);
+
+      const payload = {
+        prompt,
+        ratio: '1.54:1',
+        resolution: 480,
+      };
+
+      const res = await fetch('/api/image-gen/textToimg', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error('이미지 생성 실패');
+
+      const data = await res.json();
+
+      tokenUsage = data.tokenUsage;
+
+      console.log(data);
+
+      if (!data.success) {
+        notify('이미지 생성에 실패하셨습니다. 프롬프트를 더 다듬어주세요.');
+        return;
+      }
+
+      if (data.generatedImage) {
+        setGeneratedImages(prev => [
+          ...prev,
+          {
+            dataUrl: `data:image/png;base64,${data.generatedImage}`,
+            timestamp: new Date(),
+          },
+        ]);
+      }
+    } catch (err: any) {
+      setError(err?.message || '알 수 없는 오류');
+    } finally {
+      setIsGenerating(false);
+      await reportUsage('imageGemini', tokenUsage, 1);
     }
   };
 
@@ -249,8 +306,14 @@ export function GeminiImageWithUpload() {
 
           <Button
             className='w-full'
-            onClick={generateWithGemini}
-            disabled={isGenerating || assets.length === 0 || !prompt.trim()}
+            onClick={() => {
+              if (primary) {
+                generateWithGemini();
+              } else {
+                generateImageToText();
+              }
+            }}
+            disabled={isGenerating || !prompt.trim()}
           >
             {isGenerating ? (
               <>
@@ -354,4 +417,4 @@ export function GeminiImageWithUpload() {
       )}
     </div>
   );
-}
+};

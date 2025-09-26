@@ -14,95 +14,32 @@ type CandidatePart = {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const {
-      globalStyle,
-      prompt,
-      imageBase64,
-      imageMimeType,
-      ratio,
-      resolution,
-      additions,
-    } = body;
+    const { prompt, ratio, resolution } = body;
 
-    if (!prompt || !imageBase64 || !imageMimeType) {
+    if (!prompt) {
       return NextResponse.json(
         { success: false, error: '필수 파라미터가 누락되었습니다.' },
         { status: 400 }
       );
     }
 
-    const inputBody = !!additions
-      ? [
-          {
-            role: 'model',
-            parts: [
-              {
-                text: `Generate ${globalStyle} with this reference image ${ratio} ratio ${resolution}p resolution pixel image`,
-              },
-            ],
-          },
-          {
-            role: 'user',
-            parts: [
-              { text: JSON.stringify(prompt) },
-              {
-                inlineData: {
-                  mimeType: imageMimeType,
-                  data: imageBase64,
-                },
-              },
-            ],
-          },
-          ...additions?.map(
-            (a: {
-              caption: string;
-              inlineData: {
-                mimeType: string;
-                data: string;
-              };
-            }) => ({
-              role: 'user',
-              parts: [
-                a.caption ? [{ text: a.caption }] : [],
-                {
-                  inlineData: {
-                    mimeType: a.inlineData.mimeType,
-                    data: a.inlineData.data,
-                  },
-                },
-              ],
-            })
-          ),
-        ]
-      : [
-          {
-            role: 'model',
-            parts: [
-              {
-                text: `Generate ${globalStyle} with this reference image ${ratio} ratio ${resolution}p resolution pixel image`,
-              },
-            ],
-          },
-          {
-            role: 'user',
-            parts: [
-              { text: JSON.stringify(prompt) },
-              {
-                inlineData: {
-                  mimeType: imageMimeType,
-                  data: imageBase64,
-                },
-              },
-            ],
-          },
-        ];
-
-    console.log(inputBody);
-
     const result = await genAI
       .getGenerativeModel({ model: 'gemini-2.5-flash-image-preview' })
       .generateContent({
-        contents: inputBody,
+        contents: [
+          {
+            role: 'model',
+            parts: [
+              {
+                text: `Generate image ${ratio} ratio ${resolution}p resolution pixel image`,
+              },
+            ],
+          },
+          {
+            role: 'user',
+            parts: [{ text: JSON.stringify(prompt) }],
+          },
+        ],
         generationConfig: {
           temperature: 0.3,
         },
