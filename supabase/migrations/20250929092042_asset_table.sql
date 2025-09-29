@@ -15,9 +15,9 @@ create table if not exists public.assets (
 create index if not exists idx_assets_parents_type_version
   on public.assets(parents_id, type, version);
 
--- (원한다면 유니크 제약으로 버전 중복 방지)
--- create unique index if not exists uq_assets_parents_type_version
---   on public.assets(parents_id, type, version);
+-- (유니크 제약으로 버전 중복 방지)
+create unique index if not exists uq_assets_parents_type_version
+  on public.assets(parents_id, type, version);
 
 -- updated_at 트리거
 drop trigger if exists trg_assets_updated_at on public.assets;
