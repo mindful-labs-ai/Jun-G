@@ -41,6 +41,7 @@ import ConfigModal from '@/components/maker/ConfigModal';
 import { buildClipPromptText } from '@/lib/maker/clipPromptBuilder';
 import { useAuthStore } from '@/lib/shared/useAuthStore';
 import { reportUsage } from '@/lib/shared/usage';
+import { useSceneClipPolling } from '@/lib/maker/useClipPolling';
 
 type ClipJob = { sceneId: string; aiType: 'kling' | 'seedance' };
 
@@ -68,6 +69,9 @@ export const ShortFormMaker = () => {
   const [selectedSceneIds, setSelectedSceneIds] = useState<Set<string>>(
     new Set()
   );
+
+  const { startClipPolling, stopClipPolling } =
+    useSceneClipPolling(setClipsByScene);
 
   // ai config state
   const customRule = useAIConfigStore(config => config.customRule);
@@ -112,7 +116,7 @@ export const ShortFormMaker = () => {
   );
 
   const clipQueueRef = useRef<ClipJob[]>([]);
-  const clipQueuedSetRef = useRef<Set<string>>(new Set()); // sceneId 중복 방지
+  const clipQueuedSetRef = useRef<Set<string>>(new Set());
   const clipQueueTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ---- 파생 배열(하위 컴포넌트들은 배열로 유지) ----
@@ -586,6 +590,7 @@ export const ShortFormMaker = () => {
       ) {
         if (clipAiType === 'seedance') {
           try {
+            stopClipPolling(sceneId);
             await fetch(`/api/seedance/${clip.taskUrl}`, {
               method: 'DELETE',
               cache: 'no-store',
@@ -1064,6 +1069,8 @@ export const ShortFormMaker = () => {
 
   const idleSceneClip = async (sceneId: string) => {
     if (confirm('정말 초기화 하시겠습니까?')) {
+      stopClipPolling(sceneId);
+
       const placeIdle: GeneratedClip = {
         status: 'idle',
         sceneId,
@@ -1204,17 +1211,20 @@ export const ShortFormMaker = () => {
           const json = (await response.json()) as SeeDanceImageToVideoResponse;
           if (!json.id) throw new Error('클립 생성 실패');
 
+          const taskId = json.id;
           setClipsByScene(prev => {
             const next = new Map(prev);
             next.set(sceneId, {
               status: 'queueing',
-              taskUrl: json.id,
+              taskUrl: taskId,
               sceneId,
               timestamp: Date.now(),
               confirmed: false,
             });
             return next;
           });
+
+          startClipPolling(sceneId, 'seedance', taskId);
         } catch (error) {
           setClipsByScene(prev => {
             const next = new Map(prev);
@@ -1276,138 +1286,16 @@ export const ShortFormMaker = () => {
   const getClip = async ({
     sceneId,
     aiType,
-    polling,
   }: {
     sceneId: string;
     aiType: 'kling' | 'seedance';
-    polling?: boolean;
   }) => {
-    const clipId = clipsByScene.get(sceneId)?.taskUrl;
-
-    if (aiType === 'kling') {
-      try {
-        const response = await fetch(`/api/kling/${clipId}`, {
-          method: 'GET',
-          cache: 'no-store',
-        });
-
-        if (!response.ok) {
-          throw new Error(`Status ${response.status}`);
-        }
-
-        const json = (await response.json()) as KlingImageToVideoStatusResponse;
-
-        console.log(json);
-
-        if (json.data.task_status === 'processing') {
-          notify('클립 생성 중 입니다.');
-          return;
-        }
-
-        if (json.data.task_status === 'submitted') {
-          notify('클립 생성 요청 중 입니다.');
-          return;
-        }
-
-        const videoUrl = json.data.task_result?.videos[0]?.url;
-
-        if (videoUrl === undefined || json.message !== 'SUCCEED') {
-          throw new Error('비디오 생성 실패');
-        }
-
-        setClipsByScene(prev => {
-          const next = new Map(prev);
-          next.set(sceneId, {
-            status: 'succeeded',
-            taskUrl: clipId,
-            sceneId,
-            dataUrl: videoUrl,
-            timestamp: Date.now(),
-            confirmed: false,
-          });
-          console.log(next);
-          return next;
-        });
-      } catch (error) {
-        setClipsByScene(prev => {
-          const next = new Map(prev);
-          next.set(sceneId, {
-            status: 'failed',
-            sceneId,
-            timestamp: Date.now(),
-            confirmed: false,
-          });
-          console.log(next);
-          return next;
-        });
-        console.log(`kling get clip ERROR! : ${error}`);
-      }
+    const taskId = clipsByScene.get(sceneId)?.taskUrl;
+    if (!taskId) {
+      notify('클립 ID가 없습니다.');
+      return;
     }
-
-    if (aiType === 'seedance') {
-      try {
-        const response = await fetch(`/api/seedance/${clipId}`, {
-          method: 'GET',
-          cache: 'no-store',
-        });
-
-        if (!response.ok) {
-          throw new Error(`Status ${response.status}`);
-        }
-
-        const json = (await response.json()) as TaskResponse;
-
-        if (json.status === 'failed' || json.status === 'cancled') {
-          throw new Error(`AI Error : ${json.error}`);
-        }
-
-        if (json.status === 'queued') {
-          notify('요청 대기 중 입니다.');
-        }
-
-        if (json.status === 'running') {
-          notify('클립 생성 중 입니다.');
-        }
-
-        if (json.status === 'succeeded') {
-          const videoUrl = json.content?.video_url ?? [];
-
-          const tokenUsage = json.usage?.total_tokens ?? 0;
-
-          if (videoUrl === undefined) {
-            throw new Error('클립 생성 실패');
-          }
-
-          setClipsByScene(prev => {
-            const next = new Map(prev);
-            next.set(sceneId, {
-              status: 'succeeded',
-              taskUrl: clipId,
-              sceneId,
-              dataUrl: videoUrl,
-              timestamp: Date.now(),
-              confirmed: false,
-            });
-            console.log(next);
-            return next;
-          });
-          await reportUsage('clipSeedance', tokenUsage, 1);
-        }
-      } catch (error) {
-        setClipsByScene(prev => {
-          const next = new Map(prev);
-          next.set(sceneId, {
-            status: 'failed',
-            sceneId,
-            timestamp: Date.now(),
-            confirmed: false,
-          });
-          console.log(next);
-          return next;
-        });
-        console.log(`kling get clip ERROR! : ${error}`);
-      }
-    }
+    startClipPolling(sceneId, aiType, taskId);
   };
 
   const generateMultiClips = useCallback(() => {
@@ -1465,7 +1353,7 @@ export const ShortFormMaker = () => {
       return;
     }
 
-    startClipQueue(500);
+    startClipQueue(800);
     notify(`${enqueued}개가 클립 큐에 추가되었습니다.`);
   }, [
     allClipsConfirmed,

@@ -1,16 +1,16 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Upload, Loader2, X, FileImage, Sparkles } from 'lucide-react';
-import { KlingImageToVideoStatusResponse } from '@/app/api/kling/[id]/route';
+// import { KlingImageToVideoStatusResponse } from '@/app/api/kling/[id]/route';
 import {
   SeeDanceImageToVideoResponse,
   TaskResponse,
 } from '@/app/api/seedance/clip-gen/[id]/route';
-import { KlingImageToVideoResponse } from '@/app/api/kling/clip-gen/[id]/route';
+// import { KlingImageToVideoResponse } from '@/app/api/kling/clip-gen/[id]/route';
 import { notify } from '@/lib/gif/utils';
 import { reportUsage } from '@/lib/shared/usage';
 
@@ -48,6 +48,18 @@ export const GenerateVideoWithUpload = () => {
   const lastFrameInputRef = useRef<HTMLInputElement>(null);
   const [liteModel, setLiteModel] = useState(false);
   const [ratio, setRatio] = useState<Ratio>('16:9');
+
+  const [isPolling, setIsPolling] = useState(false);
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastStatusRef = useRef<TaskResponse['status'] | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+      if (abortRef.current) abortRef.current.abort();
+    };
+  }, []);
 
   // 파일을 Base64로 변환
   const fileToBase64 = (file: File): Promise<UploadedImage> => {
@@ -146,8 +158,87 @@ export const GenerateVideoWithUpload = () => {
     }
   };
 
+  const stopPolling = () => {
+    if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    pollTimerRef.current = null;
+    if (abortRef.current) abortRef.current.abort();
+    abortRef.current = null;
+    lastStatusRef.current = null;
+    setIsPolling(false);
+  };
+
+  const startPolling = (id: string) => {
+    if (!id) {
+      setError('먼저 생성 버튼으로 클립을 만들고 나서 불러오기를 눌러주세요.');
+      return;
+    }
+    if (isPolling) return;
+
+    setIsPolling(true);
+    checkSeedanceOnce(id);
+
+    pollTimerRef.current = setInterval(() => {
+      checkSeedanceOnce(id);
+    }, 5000);
+  };
+
   const handleGenerateVideo = () => {
     generateWithSeedance();
+  };
+
+  const checkSeedanceOnce = async (id: string) => {
+    try {
+      if (abortRef.current) abortRef.current.abort();
+      abortRef.current = new AbortController();
+
+      const response = await fetch(`/api/seedance/${id}`, {
+        method: 'GET',
+        cache: 'no-store',
+        signal: abortRef.current.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Status ${response.status}`);
+      }
+
+      const jsonData = (await response.json()) as TaskResponse;
+      const status = jsonData.status;
+
+      if (status !== lastStatusRef.current) {
+        if (status === 'queued') notify('요청 대기 중 입니다.');
+        if (status === 'running') notify('클립 생성 중 입니다.');
+        lastStatusRef.current = status;
+      }
+
+      if (status === 'succeeded') {
+        const videoUrl = jsonData.content?.video_url;
+        if (!videoUrl) throw new Error('클립 생성 실패');
+
+        setGeneratedClips(prev => [
+          ...prev,
+          { aiType: 'SEE_DANCE', id: jsonData.id, url: videoUrl },
+        ]);
+
+        const tokenUsage = jsonData.usage?.total_tokens;
+        await reportUsage('clipSeedance', tokenUsage, 1);
+
+        notify('완료! 클립을 불러왔습니다.');
+        stopPolling();
+        return 'done';
+      }
+
+      if (status === 'failed' || status === 'canceled') {
+        setError(`AI Error : ${jsonData.error ?? '알 수 없는 오류'}`);
+        stopPolling();
+        return 'error';
+      }
+
+      return 'pending';
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '알 수 없는 오류');
+      stopPolling();
+      return 'error';
+    }
   };
 
   // const generateWithKling = async () => {
@@ -243,10 +334,12 @@ export const GenerateVideoWithUpload = () => {
     }
   };
 
-  const handleGetVideo = (id: string) => {
-    if (aiType === 'SEE_DANCE') {
-      getWithSeedance(id);
+  const handleGetVideo = (id: string | null) => {
+    if (!id) {
+      setError('클립 ID가 없습니다. 먼저 생성해 주세요.');
+      return;
     }
+    startPolling(id);
   };
 
   // const getWithKling = async (id: string) => {
@@ -298,7 +391,7 @@ export const GenerateVideoWithUpload = () => {
 
       const jsonData = (await response.json()) as TaskResponse;
 
-      if (jsonData.status === 'failed' || jsonData.status === 'cancled') {
+      if (jsonData.status === 'failed' || jsonData.status === 'canceled') {
         throw new Error(`AI Error : ${jsonData.error}`);
       }
 
@@ -615,8 +708,19 @@ export const GenerateVideoWithUpload = () => {
               </>
             )}
           </Button>
-          <Button className='w-full' onClick={() => handleGetVideo(clipId!)}>
-            영상 읽어오기
+          <Button
+            className='w-full'
+            onClick={() => handleGetVideo(clipId)}
+            disabled={!clipId || isPolling}
+          >
+            {isPolling ? (
+              <>
+                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                자동 확인 중 (5초 간격)
+              </>
+            ) : (
+              '영상 읽어오기'
+            )}
           </Button>
         </div>
       </div>
