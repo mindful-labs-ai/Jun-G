@@ -25,7 +25,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ user: null });
 
   const { data: row } = await supabase
-    .from('users')
+    .from('temp_users')
     .select(
       `
       id, email,
