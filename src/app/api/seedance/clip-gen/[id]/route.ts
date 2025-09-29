@@ -133,8 +133,7 @@ export async function POST(request: NextRequest) {
 
     const data = await response.json();
 
-    // 응답 상세 로깅
-    console.log('Seedance Response:', data);
+    console.log('Seedance Request:', contentBody);
 
     return NextResponse.json(data);
   } catch (error) {

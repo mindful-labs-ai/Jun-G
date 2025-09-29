@@ -1099,19 +1099,23 @@ export const ShortFormMaker = () => {
   };
 
   const handleGenerateClip = useCallback(
-    async (sceneId: string, aiType: 'kling' | 'seedance', queue?: boolean) => {
-      const baseImage = imagesByScene.get(sceneId)?.dataUrl ?? '';
+    async (
+      sceneId: string,
+      aiType: 'kling' | 'seedance',
+      queue?: boolean,
+      opts?: { selected?: boolean }
+    ) => {
+      const isSelected = opts?.selected;
 
+      const baseImage = imagesByScene.get(sceneId)?.dataUrl ?? '';
       if (!queue) {
-        if (!baseImage || baseImage === '') {
+        if (!baseImage) {
           notify('클립이 될 이미지를 먼저 만들어주세요.');
           return;
         }
-
-        if (!confirm('이전 클립은 삭제됩니다. 진행하시겠습니까?')) {
-          return;
-        }
+        if (!confirm('이전 클립은 삭제됩니다. 진행하시겠습니까?')) return;
       }
+
       const placeholder: GeneratedClip = {
         status: 'pending',
         sceneId,
@@ -1125,7 +1129,6 @@ export const ShortFormMaker = () => {
       });
 
       const prompt = scenesState.byId.get(sceneId)?.clipPrompt;
-
       if (!prompt) return notify('프롬프트가 비었습니다.');
 
       if (aiType === 'kling') {
@@ -1137,6 +1140,7 @@ export const ShortFormMaker = () => {
             negative_prompt: null,
             cfg_scale: 0.5,
             sourceRatio,
+            noSubject: isSelected,
           };
 
           const response = await fetch(`/api/kling/clip-gen/${sceneId}`, {
@@ -1144,16 +1148,10 @@ export const ShortFormMaker = () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
           });
-
-          console.log(body);
-
-          if (!response.ok) throw new Error('이미지 생성 실패');
+          if (!response.ok) throw new Error('클립 생성 실패');
 
           const json = (await response.json()) as KlingImageToVideoResponse;
-
-          console.log(json);
-
-          if (json.code !== 0) throw new Error('이미지 생성 실패');
+          if (json.code !== 0) throw new Error('클립 생성 실패');
 
           setClipsByScene(prev => {
             const next = new Map(prev);
@@ -1164,7 +1162,6 @@ export const ShortFormMaker = () => {
               timestamp: Date.now(),
               confirmed: false,
             });
-            console.log(next);
             return next;
           });
         } catch (error) {
@@ -1189,6 +1186,7 @@ export const ShortFormMaker = () => {
             resolution: sourceResolution,
             ratio: sourceRatio,
             baseImage: baseImage,
+            noSubject: isSelected,
           };
 
           const response = await fetch(`/api/seedance/clip-gen/${sceneId}`, {
@@ -1197,13 +1195,8 @@ export const ShortFormMaker = () => {
             body: JSON.stringify(body),
           });
 
-          console.log(body);
-
           const json = (await response.json()) as SeeDanceImageToVideoResponse;
-
-          if (!json.id) throw new Error('이미지 생성 실패');
-
-          console.log(json);
+          if (!json.id) throw new Error('클립 생성 실패');
 
           setClipsByScene(prev => {
             const next = new Map(prev);
@@ -1214,7 +1207,6 @@ export const ShortFormMaker = () => {
               timestamp: Date.now(),
               confirmed: false,
             });
-            console.log(next);
             return next;
           });
         } catch (error) {
@@ -1232,7 +1224,7 @@ export const ShortFormMaker = () => {
         }
       }
     },
-    [imagesByScene, scenesState.byId]
+    [imagesByScene, scenesState.byId, sourceRatio, sourceResolution]
   );
 
   const enqueueClipJob = useCallback(
@@ -1260,18 +1252,19 @@ export const ShortFormMaker = () => {
 
       clipQueueTimerRef.current = setInterval(() => {
         const next = clipQueueRef.current.shift();
-
         if (!next) {
           clearInterval(clipQueueTimerRef.current!);
           clipQueueTimerRef.current = null;
           clipQueuedSetRef.current.clear();
           return;
         }
-
-        void handleGenerateClip(next.sceneId, next.aiType, true);
+        const isSelected = selectedSceneIds.has(next.sceneId);
+        void handleGenerateClip(next.sceneId, next.aiType, true, {
+          selected: isSelected,
+        });
       }, intervalMs);
     },
-    [handleGenerateClip]
+    [handleGenerateClip, selectedSceneIds]
   );
 
   const getClip = async ({

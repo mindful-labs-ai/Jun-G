@@ -60,7 +60,11 @@ type Props = {
   clips: Map<string, GeneratedClip>;
   onGenerateClip: (
     sceneId: string,
-    aiType: 'kling' | 'seedance'
+    aiType: 'kling' | 'seedance',
+    queue?: boolean,
+    opts?: {
+      selected?: boolean;
+    }
   ) => Promise<void>;
   onGenerateAllClips: () => void;
   onConfirmClip: (clipId: string) => void;
@@ -308,6 +312,8 @@ export default function VisualPipeline({
                   onConfirmAll={onConfirmAllClips}
                   onQueueAction={onQueueAction}
                   setIdleSceneClip={setIdleSceneClip}
+                  selected={selected}
+                  setSelected={setSelected}
                 />
               </div>
             )}
