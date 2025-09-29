@@ -1182,7 +1182,13 @@ export const ShortFormMaker = () => {
       if (aiType === 'seedance') {
         try {
           const body = {
-            prompt: buildClipPromptText(prompt),
+            prompt: `, background : ${JSON.stringify(
+              prompt.background
+            )}, camera_motion : ${JSON.stringify(
+              prompt.camera_motion
+            )}, environment_motion : ${JSON.stringify(
+              prompt.environment_motion
+            )}`,
             resolution: sourceResolution,
             ratio: sourceRatio,
             baseImage: baseImage,
