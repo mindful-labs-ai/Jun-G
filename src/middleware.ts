@@ -7,9 +7,7 @@ const THROTTLE_COOKIE = 'mw_auth_next_check_at';
 const THROTTLE_MS = 30_000;
 
 const getProjectRef = (): string | null => {
-  const m = process.env.NEXT_PUBLIC_SUPABASE_URL?.match(
-    /^https:\/\/([^.]+)\.supabase\.co/
-  );
+  const m = process.env.SUPABASE_URL?.match(/^https:\/\/([^.]+)\.supabase\.co/);
   return m?.[1] ?? null;
 };
 
@@ -138,8 +136,8 @@ export const middleware = async (req: NextRequest) => {
   });
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_ANON_KEY!,
     {
       cookies: {
         getAll: () => req.cookies.getAll(),
