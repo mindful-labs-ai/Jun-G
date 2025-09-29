@@ -1,5 +1,5 @@
-@import "tailwindcss";
-@import "tw-animate-css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
 
 :root {
   /* Updated color palette to match design brief - cyan/slate professional theme */ /* #ffffff */ /* #475569 */

@@ -1,5 +1,6 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { ResponseCreateParamsNonStreaming } from 'openai/resources/responses/responses.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -9,35 +10,57 @@ const client = new OpenAI({ apiKey: process.env.OPENAI_IMAGE_API_KEY! });
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { prompt, imageUrl, ratio, resolution } = body;
+    const { globalStyle, prompt, imageUrl, ratio, resolution, noCharacter } =
+      body;
 
-    const response = await client.responses.create({
-      model: 'gpt-4.1',
-      input: [
-        {
-          role: 'system',
-          content: `Generate A masterpiece Japanese style anime illustration of this reference character ratio ${ratio} resolution ${resolution}p`,
-        },
-        {
-          role: 'user',
-          content: [
-            { type: 'input_text', text: prompt },
+    const openAiBody = noCharacter
+      ? {
+          model: 'gpt-4.1',
+          input: [
             {
-              type: 'input_image',
-              image_url: imageUrl,
-              detail: 'high',
+              role: 'system',
+              content: `Generate no person, no subject, no character, no hands image ${globalStyle} ratio ${ratio} resolution ${resolution}p`,
+            },
+            {
+              role: 'user',
+              content: [{ type: 'input_text', text: JSON.stringify(prompt) }],
             },
           ],
-        },
-      ],
-      tools: [{ type: 'image_generation' }],
-    });
+          tools: [{ type: 'image_generation' }],
+        }
+      : {
+          model: 'gpt-4.1',
+          input: [
+            {
+              role: 'system',
+              content: `레퍼런스 이미지와 요청 이미지의 분위기가 맞지 않더라도 그냥 만들어, Generate image ${globalStyle} ratio ${ratio} resolution ${resolution}p`,
+            },
+            {
+              role: 'user',
+              content: [
+                { type: 'input_text', text: JSON.stringify(prompt) },
+                {
+                  type: 'input_image',
+                  image_url: imageUrl,
+                  detail: 'high',
+                },
+              ],
+            },
+          ],
+          tools: [{ type: 'image_generation' }],
+        };
+
+    const response = await client.responses.create(
+      openAiBody as ResponseCreateParamsNonStreaming
+    );
+
+    const tokenUsage = response.usage?.total_tokens;
 
     console.log(response);
 
-    return Response.json(response);
+    return NextResponse.json({ response: response, token: tokenUsage });
   } catch (err) {
     console.error(err);
-    return Response.json({ error: err }, { status: 500 });
+    return NextResponse.json({ error: err }, { status: 500 });
   }
 }

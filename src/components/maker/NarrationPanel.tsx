@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { GeneratedNarration, NarrationSettings } from '../../lib/maker/types';
 import { formatTime } from '../../lib/maker/utils';
+import { useMemo, useRef, useState } from 'react';
 
 export default function NarrationPanel({
   scriptPresent,
@@ -32,6 +33,7 @@ export default function NarrationPanel({
   onPlayPause,
   onDownload,
   onConfirm,
+  onSeek, // ★ 추가
 }: {
   scriptPresent: boolean;
   narration: GeneratedNarration | null;
@@ -44,7 +46,22 @@ export default function NarrationPanel({
   onPlayPause: () => void;
   onDownload: () => void;
   onConfirm: () => void;
+  onSeek: (sec: number) => void; // ★ 추가
 }) {
+  // 드래그(스크럽) 중 임시 값
+  const [scrub, setScrub] = useState<number | null>(null);
+  const isScrubbing = useRef(false);
+
+  const duration = narration?.duration ?? 0;
+  const displayCurrent = scrub ?? currentTime;
+
+  // 슬라이더 value는 항상 배열
+  const sliderValue = useMemo<[number]>(() => {
+    return [Math.min(duration || 0, Math.max(0, displayCurrent || 0))];
+  }, [displayCurrent, duration]);
+
+  const canSeek = !!narration && duration > 0;
+
   return (
     <div className='p-4 border border-border rounded-lg'>
       <h3 className='font-semibold mb-2'>나레이션 생성</h3>
@@ -54,79 +71,47 @@ export default function NarrationPanel({
 
       {/* controls */}
       <div className='space-y-4'>
-        {/* Tempo */}
-        <div className='space-y-2'>
-          <div className='flex items-center justify-between'>
-            <span className='text-sm font-medium'>템포</span>
-            <span className='text-sm text-muted-foreground'>
-              {settings.tempo}%
-            </span>
+        {/* Stability */}
+        <div className='flex flex-col gap-2'>
+          <span className='text-sm font-medium'>Stability</span>
+          <div className='flex flex-col gap-1'>
+            <Slider
+              value={[settings.stability]}
+              onValueChange={value =>
+                setSettings({ ...settings, stability: value[0] })
+              }
+              max={100}
+              min={0}
+              step={50}
+              className='w-full'
+            />
+            <div className='w-full text-xs text-muted-foreground flex justify-between'>
+              <span>Creative</span>
+              <span>Robust</span>
+            </div>
           </div>
-          <Slider
-            value={[settings.tempo]}
-            onValueChange={value =>
-              setSettings({ ...settings, tempo: value[0] })
-            }
-            max={200}
-            min={25}
-            step={5}
-            className='w-full'
-          />
-        </div>
-
-        {/* Tone */}
-        <div className='space-y-2'>
-          <span className='text-sm font-medium'>톤</span>
-          <Select
-            value={settings.tone}
-            onValueChange={value => setSettings({ ...settings, tone: value })}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value='neutral'>중립적</SelectItem>
-              <SelectItem value='friendly'>친근한</SelectItem>
-              <SelectItem value='professional'>전문적</SelectItem>
-              <SelectItem value='energetic'>활기찬</SelectItem>
-              <SelectItem value='calm'>차분한</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
 
         {/* Voice */}
         <div className='space-y-2'>
           <span className='text-sm font-medium'>음성</span>
           <Select
-            value={settings.voice}
-            onValueChange={value => setSettings({ ...settings, voice: value })}
+            value={settings.model}
+            onValueChange={value => setSettings({ ...settings, model: value })}
           >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value='female'>여성</SelectItem>
-              <SelectItem value='male'>남성</SelectItem>
-              <SelectItem value='child'>아동</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Style */}
-        <div className='space-y-2'>
-          <span className='text-sm font-medium'>스타일</span>
-          <Select
-            value={settings.style}
-            onValueChange={value => setSettings({ ...settings, style: value })}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value='professional'>전문적</SelectItem>
-              <SelectItem value='conversational'>대화형</SelectItem>
-              <SelectItem value='dramatic'>드라마틱</SelectItem>
-              <SelectItem value='educational'>교육적</SelectItem>
+              <SelectItem value='jB1Cifc2UQbq1gR3wnb0'>
+                Bin(한글 모델)
+              </SelectItem>
+              <SelectItem value='3JDquces8E8bkmvbh6Bc'>
+                Otani(일본어 모델)
+              </SelectItem>
+              <SelectItem value='dPah2VEoifKnZT37774q'>
+                Knox Dark 2(영어 모델)
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -167,28 +152,50 @@ export default function NarrationPanel({
                 <Play className='w-4 h-4' />
               )}
             </Button>
+
             <div className='flex-1'>
               <div className='flex items-center justify-between text-sm text-muted-foreground mb-1'>
-                <span>{formatTime(currentTime)}</span>
-                <span>{formatTime(narration.duration)}</span>
+                <span>{formatTime(Math.floor(displayCurrent))}</span>
+                <span>{formatTime(duration)}</span>
               </div>
-              <div className='w-full bg-muted rounded-full h-2'>
-                <div
-                  className='bg-primary h-2 rounded-full transition-all duration-1000'
-                  style={{
-                    width: `${(currentTime / narration.duration) * 100}%`,
+
+              {/* ★ 재생바: Slider로 교체 (드래그 시 프리뷰, 놓을 때 onSeek 호출) */}
+              <div
+                className='w-full'
+                onPointerDown={() => {
+                  isScrubbing.current = true;
+                }}
+                onPointerUp={() => {
+                  if (!canSeek) return;
+                  if (isScrubbing.current) {
+                    isScrubbing.current = false;
+                    if (typeof scrub === 'number') {
+                      onSeek(Math.max(0, Math.min(duration, scrub)));
+                    }
+                    setScrub(null);
+                  }
+                }}
+              >
+                <Slider
+                  value={sliderValue}
+                  max={Math.max(1, duration)}
+                  min={0}
+                  step={0.1}
+                  disabled={!canSeek}
+                  onValueChange={v => {
+                    if (!canSeek) return;
+                    // 드래그 중엔 프리뷰만 갱신
+                    setScrub(v[0]);
                   }}
+                  className='w-full'
                 />
               </div>
             </div>
+
             <Volume2 className='w-4 h-4 text-muted-foreground' />
           </div>
 
-          <div className='flex items-center justify-between'>
-            <div className='text-sm text-muted-foreground'>
-              {narration.settings.voice} • {narration.settings.tone} •{' '}
-              {narration.settings.tempo}%
-            </div>
+          <div className='flex items-center justify-end'>
             <div className='flex items-center gap-2'>
               <Button
                 size='sm'

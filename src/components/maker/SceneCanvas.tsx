@@ -4,24 +4,34 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Check, RefreshCw, ImageIcon } from 'lucide-react';
-import TextareaAutoSize from 'react-textarea-autosize';
 import type {
   Scene,
   GeneratedImage,
   GeneratedClip,
+  ScenesState,
 } from '../../lib/maker/types';
+import ClipPromptEditor from './ClipPromptEditor';
+import ImagePromptEditor from './ImagePromptEditor';
+import SingleSceneRegenerator from './SingleSceneGenerator';
 
 type Step = 0 | 1 | 2;
 
 type Props = {
+  script: string;
   step: Step; // 0: scenes, 1: images, 2: clips
   scene: Scene | null;
+  setScenesState: React.Dispatch<React.SetStateAction<ScenesState>>;
   images: Map<string, GeneratedImage>;
   clips: Map<string, GeneratedClip>;
-  onUpdatePrompt: (id: string, v: string) => void;
-  onUpdateClipPrompt: (id: string, v: string) => void;
+  selected: Set<string>;
   onConfirmScene?: (id: string) => void;
-  onGenerateImage?: (sceneId: string) => void;
+  onGenerateImage?: (
+    sceneId: string,
+    queue?: boolean,
+    opts?: {
+      selected?: boolean;
+    }
+  ) => Promise<void>;
   onConfirmImage?: (imageId: string) => void;
   onGenerateClip?: (
     sceneId: string,
@@ -30,18 +40,19 @@ type Props = {
   onConfirmClip?: (clipId: string) => void;
 };
 
-export default function SceneCanvas({
+export const SceneCanvas = ({
+  script,
   step,
   scene,
+  setScenesState,
   images,
   clips,
-  onUpdatePrompt,
-  onUpdateClipPrompt,
+  selected,
   onConfirmScene,
   onGenerateImage,
   onConfirmImage,
   onConfirmClip,
-}: Props) {
+}: Props) => {
   if (!scene) {
     return (
       <Card>
@@ -72,18 +83,32 @@ export default function SceneCanvas({
           <Separator />
           <div>
             <div className='text-xs text-muted-foreground mb-2'>
-              {step === 2 ? 'ClipPrompt' : 'ImagePrompt'}
+              {step === 0
+                ? 'SceneGenerating'
+                : step === 1
+                ? 'ImagePrompt'
+                : 'ClipPrompt'}
             </div>
-            <TextareaAutoSize
-              className='min-h-[220px] w-full disabled:text-black disabled:cursor-not-allowed resize-none rounded-lg break-keep'
-              value={step === 2 ? scene.clipPrompt : scene.imagePrompt}
-              onChange={e => {
-                step === 2
-                  ? onUpdateClipPrompt(scene.id, e.target.value)
-                  : onUpdatePrompt(scene.id, e.target.value);
-              }}
-              disabled={scene.confirmed}
-            />
+            {step === 0 ? (
+              <SingleSceneRegenerator
+                scene={scene}
+                sceneId={scene.id}
+                script={script}
+                setScenesState={setScenesState}
+              />
+            ) : step === 1 ? (
+              <ImagePromptEditor
+                imagePrompt={scene.imagePrompt}
+                sceneId={scene.id}
+                setScenesState={setScenesState}
+              />
+            ) : (
+              <ClipPromptEditor
+                clipPrompt={scene.clipPrompt}
+                sceneId={scene.id}
+                setScenesState={setScenesState}
+              />
+            )}
             <div className='mt-2 flex items-center gap-2'>
               <Button
                 size='sm'
@@ -97,7 +122,11 @@ export default function SceneCanvas({
                 <Button
                   size='sm'
                   variant='default'
-                  onClick={() => onGenerateImage?.(scene.id)}
+                  onClick={() =>
+                    onGenerateImage?.(scene.id, false, {
+                      selected: selected.has(scene.id),
+                    })
+                  }
                   disabled={sceneImages?.status === 'pending'}
                 >
                   {sceneImages?.status === 'pending' ? (
@@ -202,4 +231,6 @@ export default function SceneCanvas({
       </Card>
     </div>
   );
-}
+};
+
+export default SceneCanvas;

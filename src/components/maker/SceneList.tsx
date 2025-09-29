@@ -1,10 +1,16 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Check, RefreshCw } from 'lucide-react';
+import {
+  Check,
+  MinusSquareIcon,
+  PlusSquareIcon,
+  RefreshCw,
+} from 'lucide-react';
 import { Scene } from '../../lib/maker/types';
+import { buildImagePromptText } from '@/lib/maker/imagePromptBuilder';
 
-export default function SceneList({
+export const SceneList = ({
   scenes,
   generating,
   onGenerate,
@@ -13,16 +19,30 @@ export default function SceneList({
   onConfirm,
   onConfirmAll,
   isConfirmedAllScenes,
+  addScene,
+  removeScene,
+  selected,
+  setSelected,
 }: {
   scenes: Scene[];
   generating: boolean;
   onGenerate: () => void;
-  onGenerateImage: (sceneId: string) => Promise<void>;
+  onGenerateImage: (
+    sceneId: string,
+    queue?: boolean,
+    opts?: {
+      selected?: boolean;
+    }
+  ) => Promise<void>;
   onGenerateAllImages: () => void;
   onConfirm: (id: string) => void;
   onConfirmAll: () => void;
   isConfirmedAllScenes: boolean;
-}) {
+  addScene: (targetId: string) => void;
+  removeScene: (sceneId: string) => Promise<void>;
+  selected: Set<string>;
+  setSelected: (sceneId: string) => void;
+}) => {
   return (
     <div className='p-4 border border-border rounded-lg'>
       <div className='flex items-center justify-between mb-2'>
@@ -33,16 +53,19 @@ export default function SceneList({
           </p>
         </div>
         <div className='space-x-2'>
-          {scenes.length > 0 &&
-            (!isConfirmedAllScenes ? (
+          {scenes.length > 0 && (
+            <>
               <Button variant='outline' onClick={onConfirmAll}>
-                전체 확정
+                {isConfirmedAllScenes ? '전체 해제' : '전체 선택'}
               </Button>
-            ) : (
-              <Button onClick={() => onGenerateAllImages()}>
-                사진 병렬 작업
+              <Button
+                variant={isConfirmedAllScenes ? 'default' : 'outline'}
+                onClick={() => onGenerateAllImages()}
+              >
+                {isConfirmedAllScenes ? '전체 생성' : '선택 생성'}
               </Button>
-            ))}
+            </>
+          )}
           <Button
             variant='outline'
             className='bg-transparent'
@@ -68,9 +91,20 @@ export default function SceneList({
               key={scene.id}
               className='p-3 border border-border rounded-lg bg-card'
             >
-              <div className='flex items-start justify-between mb-2'>
+              <div className='flex relative items-start justify-between mb-2'>
                 <div className='flex-1'>
-                  <h1 className='text-lg mb-4'># {scene.id}</h1>
+                  <div className='flex gap-4 mb-4'>
+                    <h1 className='text-lg'># {scene.id}</h1>
+                    <div className='flex text-xs text-muted-foreground gap-1 items-center'>
+                      <input
+                        checked={selected.has(scene.id)}
+                        onChange={() => setSelected(scene.id)}
+                        id={scene.id}
+                        type='checkbox'
+                      />
+                      <label htmlFor={scene.id}>이미지 캐릭터 미사용</label>
+                    </div>
+                  </div>
                   <p className='text-xs text-muted-foreground mb-1'>원문:</p>
                   <p className='text-sm font-medium mb-2 whitespace-pre-line'>
                     {scene.originalText}
@@ -79,7 +113,7 @@ export default function SceneList({
                     이미지 프롬프트:
                   </p>
                   <p className='text-sm text-muted-foreground mb-2'>
-                    {scene.imagePrompt}
+                    {buildImagePromptText(scene.imagePrompt)}
                   </p>
                   <p className='text-xs text-muted-foreground mb-1'>
                     한글 요약:
@@ -92,16 +126,40 @@ export default function SceneList({
                   </p>
                   <p className='text-sm'>{scene.sceneExplain}</p>
                 </div>
-                <div className='flex items-center gap-1 ml-2'>
+                <div className='absolute flex gap-1 right-0'>
                   <Button
-                    size='sm'
+                    size='default'
                     variant={scene.confirmed ? 'default' : 'outline'}
                     onClick={() => onConfirm(scene.id)}
                   >
-                    <Check className='w-3 h-3' />
+                    <Check className='w-4 h-4' />
                   </Button>
-                  <Button onClick={() => onGenerateImage(scene.id)}>
+                  <Button
+                    size='default'
+                    variant='outline'
+                    onClick={() =>
+                      onGenerateImage(scene.id, false, {
+                        selected: selected.has(scene.id),
+                      })
+                    }
+                  >
                     이미지 생성
+                  </Button>
+                </div>
+                <div className='absolute flex gap-1 right-0 bottom-0'>
+                  <Button
+                    size='icon'
+                    variant='outline'
+                    onClick={() => addScene(scene.id)}
+                  >
+                    <PlusSquareIcon />
+                  </Button>
+                  <Button
+                    size='icon'
+                    variant='destructive'
+                    onClick={() => removeScene(scene.id)}
+                  >
+                    <MinusSquareIcon />
                   </Button>
                 </div>
               </div>
@@ -115,4 +173,6 @@ export default function SceneList({
       )}
     </div>
   );
-}
+};
+
+export default SceneList;

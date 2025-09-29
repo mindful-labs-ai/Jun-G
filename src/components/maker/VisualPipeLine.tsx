@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/shared/utils';
 import { Separator } from '@/components/ui/separator';
-import { Video, ImageIcon, Scissors, Upload } from 'lucide-react';
+import { Video, ImageIcon, Scissors, Upload, Settings } from 'lucide-react';
 import SceneList from '@/components/maker/SceneList';
 import ImageSection from '@/components/maker/ImageSection';
 import ClipSection from '@/components/maker/ClipSection';
@@ -35,11 +35,20 @@ type Props = {
   isConfirmedAllScenes: boolean;
   onEditScene: (id: string) => void;
   editingScene: string | number | null;
-  updatePrompt: (id: string, v: string) => void;
+  addScene: (targetId: string) => void;
+  removeScene: (sceneId: string) => Promise<void>;
+  selected: Set<string>;
+  setSelected: (sceneId: string) => void;
 
   // images
   images: Map<string, GeneratedImage>;
-  onGenerateImage: (sceneId: string) => Promise<void>;
+  onGenerateImage: (
+    sceneId: string,
+    queue?: boolean,
+    opts?: {
+      selected?: boolean;
+    }
+  ) => Promise<void>;
   onGenerateAllImages: () => void;
   onConfirmImage: (imgId: string) => void;
   onConfirmAllImages: () => void;
@@ -51,7 +60,11 @@ type Props = {
   clips: Map<string, GeneratedClip>;
   onGenerateClip: (
     sceneId: string,
-    aiType: 'kling' | 'seedance'
+    aiType: 'kling' | 'seedance',
+    queue?: boolean,
+    opts?: {
+      selected?: boolean;
+    }
   ) => Promise<void>;
   onGenerateAllClips: () => void;
   onConfirmClip: (clipId: string) => void;
@@ -82,6 +95,10 @@ export default function VisualPipeline({
   onConfirmScene,
   onConfirmAllScenes,
   isConfirmedAllScenes,
+  addScene,
+  removeScene,
+  selected,
+  setSelected,
 
   images,
   onGenerateImage,
@@ -100,14 +117,7 @@ export default function VisualPipeline({
   onQueueAction,
   setIdleSceneClip,
 }: Props) {
-  const clipAiType = useAIConfigStore(config => config.clipAiType);
-  const setClipAiType = useAIConfigStore(config => config.setClipAiType);
-  const imageAiType = useAIConfigStore(config => config.imageAiType);
-  const setImageAiType = useAIConfigStore(config => config.setImageAiType);
-  const ratio = useAIConfigStore(config => config.ratio);
-  const setRatio = useAIConfigStore(config => config.setRatio);
-  const resolution = useAIConfigStore(config => config.resolution);
-  const setResolution = useAIConfigStore(config => config.setResolution);
+  const setModalOpen = useAIConfigStore(config => config.setModalOpen);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [refFile, setRefFile] = useState<{
@@ -245,78 +255,9 @@ export default function VisualPipeline({
               {steps[step].sub}
             </p>
           </div>
-          <div className='flex flex-wrap items-center gap-2'>
-            {/* Image AI */}
-            <div className='inline-flex rounded-full border p-1 bg-card'>
-              <Button
-                size='sm'
-                variant={imageAiType === 'gemini' ? 'default' : 'ghost'}
-                className='h-7 rounded-full'
-                onClick={() => setImageAiType('gemini')}
-              >
-                Gemini
-              </Button>
-              <Button
-                size='sm'
-                variant={imageAiType === 'gpt' ? 'default' : 'ghost'}
-                className='h-7 rounded-full'
-                onClick={() => setImageAiType('gpt')}
-              >
-                GPT
-              </Button>
-            </div>
-
-            {/* Clip AI */}
-            <div className='inline-flex rounded-full border p-1 bg-card'>
-              <Button
-                size='sm'
-                variant={clipAiType === 'kling' ? 'default' : 'ghost'}
-                className='h-7 rounded-full'
-                onClick={() => setClipAiType('kling')}
-              >
-                Kling
-              </Button>
-              <Button
-                size='sm'
-                variant={clipAiType === 'seedance' ? 'default' : 'ghost'}
-                className='h-7 rounded-full'
-                onClick={() => setClipAiType('seedance')}
-              >
-                Seedance
-              </Button>
-            </div>
-
-            {/* Aspect Ratio */}
-            <div className='inline-flex rounded-full border p-1 bg-card'>
-              {(['1:1', '4:3', '3:4', '16:9', '9:16', '21:9'] as const).map(
-                r => (
-                  <Button
-                    key={r}
-                    size='sm'
-                    variant={ratio === r ? 'default' : 'ghost'}
-                    className='h-7 rounded-full'
-                    onClick={() => setRatio(r)}
-                  >
-                    {r}
-                  </Button>
-                )
-              )}
-            </div>
-            {/* Resolution */}
-            <div className='inline-flex rounded-full border p-1 bg-card'>
-              {([480, 720] as const).map(r => (
-                <Button
-                  key={r}
-                  size='sm'
-                  variant={resolution === r ? 'default' : 'ghost'}
-                  className='h-7 rounded-full'
-                  onClick={() => setResolution(r)}
-                >
-                  {r}
-                </Button>
-              ))}
-            </div>
-          </div>
+          <Button variant='outline' onClick={() => setModalOpen(true)}>
+            <Settings />
+          </Button>
         </div>
 
         {/* Content */}
@@ -333,6 +274,10 @@ export default function VisualPipeline({
                   onConfirm={onConfirmScene}
                   onConfirmAll={onConfirmAllScenes}
                   isConfirmedAllScenes={isConfirmedAllScenes}
+                  addScene={addScene}
+                  removeScene={removeScene}
+                  selected={selected}
+                  setSelected={setSelected}
                 />
               </div>
             )}
@@ -350,6 +295,8 @@ export default function VisualPipeline({
                   uploadRefImage={uploadRefImage}
                   selectable={true}
                   setIdleSceneImage={setIdleSceneImage}
+                  selected={selected}
+                  setSelected={setSelected}
                 />
               </div>
             )}
@@ -365,6 +312,8 @@ export default function VisualPipeline({
                   onConfirmAll={onConfirmAllClips}
                   onQueueAction={onQueueAction}
                   setIdleSceneClip={setIdleSceneClip}
+                  selected={selected}
+                  setSelected={setSelected}
                 />
               </div>
             )}

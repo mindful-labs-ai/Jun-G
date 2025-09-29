@@ -14,7 +14,15 @@ type CandidatePart = {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { prompt, imageBase64, imageMimeType, ratio, resolution } = body;
+    const {
+      globalStyle,
+      prompt,
+      imageBase64,
+      imageMimeType,
+      ratio,
+      resolution,
+      additions,
+    } = body;
 
     if (!prompt || !imageBase64 || !imageMimeType) {
       return NextResponse.json(
@@ -23,25 +31,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 사이즈에 대한 계속된 명령을 주되, 실제 리사이즈는 하지 않음
-    const enhancedPrompt = `Generate A masterpiece Japanese style anime illustration ${ratio} ratio ${resolution}p resolution pixel image ${prompt}.`;
-
-    const result = await genAI
-      .getGenerativeModel({ model: 'gemini-2.5-flash-image-preview' })
-      .generateContent({
-        contents: [
+    const inputBody = !!additions
+      ? [
           {
             role: 'model',
             parts: [
               {
-                text: `Generate A masterpiece Japanese style anime illustration`,
+                text: `Generate ${globalStyle} with this reference image ${ratio} ratio ${resolution}p resolution pixel image`,
               },
             ],
           },
           {
             role: 'user',
             parts: [
-              { text: prompt },
+              { text: JSON.stringify(prompt) },
               {
                 inlineData: {
                   mimeType: imageMimeType,
@@ -50,12 +53,64 @@ export async function POST(request: NextRequest) {
               },
             ],
           },
-        ],
+          ...additions?.map(
+            (a: {
+              caption: string;
+              inlineData: {
+                mimeType: string;
+                data: string;
+              };
+            }) => ({
+              role: 'user',
+              parts: [
+                a.caption ? [{ text: a.caption }] : [],
+                {
+                  inlineData: {
+                    mimeType: a.inlineData.mimeType,
+                    data: a.inlineData.data,
+                  },
+                },
+              ],
+            })
+          ),
+        ]
+      : [
+          {
+            role: 'model',
+            parts: [
+              {
+                text: `Generate ${globalStyle} with this reference image ${ratio} ratio ${resolution}p resolution pixel image`,
+              },
+            ],
+          },
+          {
+            role: 'user',
+            parts: [
+              { text: JSON.stringify(prompt) },
+              {
+                inlineData: {
+                  mimeType: imageMimeType,
+                  data: imageBase64,
+                },
+              },
+            ],
+          },
+        ];
+
+    console.log(inputBody);
+
+    const result = await genAI
+      .getGenerativeModel({ model: 'gemini-2.5-flash-image-preview' })
+      .generateContent({
+        contents: inputBody,
+        generationConfig: {
+          temperature: 0.3,
+        },
       });
 
-    console.log(enhancedPrompt);
-
     console.log(result);
+
+    const tokenUsage = result.response.usageMetadata?.totalTokenCount;
 
     const response = await result.response;
 
@@ -82,6 +137,7 @@ export async function POST(request: NextRequest) {
       textResponse,
       imageSize: 'original',
       timestamp: new Date().toISOString(),
+      tokenUsage: tokenUsage,
     });
   } catch (error) {
     console.error('Gemini API Error:', error);

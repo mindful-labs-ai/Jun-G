@@ -93,8 +93,10 @@ export default memo(function SceneRail({
                   </div>
                   <div className='text-sm font-medium'>{s.koreanSummary}</div>
                   <Separator className='my-4' />
-                  <div className='text-xs text-muted-foreground'>Prompt</div>
-                  <p className='text-sm leading-relaxed'>{s.imagePrompt}</p>
+                  <div className='text-xs text-muted-foreground'>
+                    SceneMessage
+                  </div>
+                  <p className='text-sm leading-relaxed'>{s.sceneExplain}</p>
                   <Separator className='my-4' />
                   <div className='text-xs text-muted-foreground'>
                     Original text

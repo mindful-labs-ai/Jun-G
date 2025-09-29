@@ -11,8 +11,9 @@ import {
   Clock,
 } from 'lucide-react';
 import { useAIConfigStore } from '@/lib/maker/useAiConfigStore';
+import { buildClipPromptText } from '@/lib/maker/clipPromptBuilder';
 
-export default function ClipSection({
+export const ClipSection = ({
   scenes,
   images,
   clips,
@@ -21,13 +22,19 @@ export default function ClipSection({
   onConfirmAll,
   onQueueAction,
   setIdleSceneClip,
+  selected,
+  setSelected,
 }: {
   scenes: Scene[];
   images: Map<string, GeneratedImage>;
   clips: Map<string, GeneratedClip>;
   onGenerateClip: (
     sceneId: string,
-    aiType: 'kling' | 'seedance'
+    aiType: 'kling' | 'seedance',
+    queue?: boolean,
+    opts?: {
+      selected?: boolean;
+    }
   ) => Promise<void>;
   onConfirmClip: (clipId: string) => void;
   onConfirmAll: () => void;
@@ -39,7 +46,9 @@ export default function ClipSection({
     aiType: 'kling' | 'seedance';
   }) => Promise<void>;
   setIdleSceneClip: (sceneId: string) => void;
-}) {
+  selected: Set<string>;
+  setSelected: (sceneId: string) => void;
+}) => {
   const clipAiType = useAIConfigStore(config => config.clipAiType);
 
   const anyClipReady =
@@ -93,7 +102,7 @@ export default function ClipSection({
 
             const isGenerating = clip?.status === 'pending';
             const isQueueing = clip?.status === 'queueing';
-            const videoSrc = clip?.dataUrl; // data:video/mp4;base64,... 혹은 URL
+            const videoSrc = clip?.dataUrl;
 
             const statusChip =
               clip?.status === 'queueing'
@@ -182,7 +191,11 @@ export default function ClipSection({
                       className='flex-1'
                       size='sm'
                       variant='outline'
-                      onClick={() => onGenerateClip(scene.id, clipAiType)}
+                      onClick={() =>
+                        onGenerateClip(scene.id, clipAiType, false, {
+                          selected: selected.has(scene.id),
+                        })
+                      }
                       disabled={isGenerating || isQueueing}
                     >
                       {isGenerating ? (
@@ -214,7 +227,11 @@ export default function ClipSection({
                 <div className='min-w-0 flex-1'>
                   <div className='mb-2 flex items-start justify-between'>
                     <div className='flex items-center gap-2 text-xs text-muted-foreground'>
-                      <span className='rounded-full border px-2.5 py-1'>
+                      <span
+                        className={`rounded-full border px-2.5 py-1 ${
+                          clip?.status === 'failed' ? 'bg-red-400' : ''
+                        }`}
+                      >
                         {statusChip}
                       </span>
                       <span>
@@ -230,7 +247,14 @@ export default function ClipSection({
                       </span>
                     </div>
                     {/* 작은 이미지 썸네일 */}
-                    <div className='right-3 absolute'>
+                    <div className='flex right-3 absolute text-xs text-muted-foreground gap-1 items-center'>
+                      <input
+                        checked={selected.has(scene.id)}
+                        onChange={() => setSelected(scene.id)}
+                        id={scene.id}
+                        type='checkbox'
+                      />
+                      <label htmlFor={scene.id}>인물 미사용</label>
                       {baseImage ? (
                         <img
                           src={baseImage}
@@ -256,7 +280,7 @@ export default function ClipSection({
                     <div>
                       <h4 className='text-sm font-semibold'>클립 프롬프트</h4>
                       <p className='mt-1 whitespace-pre-line text-sm text-muted-foreground'>
-                        {scene.clipPrompt}
+                        {buildClipPromptText(scene.clipPrompt)}
                       </p>
                     </div>
 
@@ -296,4 +320,6 @@ export default function ClipSection({
       )}
     </div>
   );
-}
+};
+
+export default ClipSection;
