@@ -8,19 +8,14 @@
 ⸻
 
 1) parents_id 네이밍 표준
-	•	프로젝트 나레이션(전역): parents_id = "narration-{project_id}"
-예) narration-12345
-	•	씬 이미지(씬 단위): parents_id = "image-{scene_id}"
-예) image-scene-7
-	•	씬 클립(씬 단위): parents_id = "clip-{scene_id}"
-예) clip-scene-7
+	•	프로젝트 나레이션(전역): parents_id = "{project_id}-{scene_id}"
 
 assets의 프라이머리 키는 id이며, 조회는 parents_id + type + version 조합으로 수행(인덱스 존재).
 버전은 1부터 시작하여 증분합니다.
 
 ⸻
 
-2) 테이블별 역할 & 저장 규칙
+1) 테이블별 역할 & 저장 규칙
 
 users
 	•	로그인 주체. login_method, email 보관.

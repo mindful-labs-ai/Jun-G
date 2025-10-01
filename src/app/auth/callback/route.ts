@@ -24,17 +24,14 @@ export async function GET(req: Request) {
     }
   );
 
-  // 2) 내부 코드 → 세션 교환
   if (code) {
     try {
       await supabase.auth.exchangeCodeForSession(code);
     } catch (e) {
       console.error('exchange failed:', e);
-      // 실패 시 로그인 페이지로
       return NextResponse.redirect(new URL('/signin', url.origin));
     }
   }
 
-  // 3) 쿼리 제거 + 홈(또는 이전 경로)로 이동
-  return NextResponse.redirect(new URL('/makerScript', url.origin));
+  return NextResponse.redirect(new URL('/project', url.origin));
 }

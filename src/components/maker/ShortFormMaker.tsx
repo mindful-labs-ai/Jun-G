@@ -30,15 +30,10 @@ import {
 } from '@/lib/maker/types';
 import VisualPipeline from '@/components/maker/VisualPipeLine';
 import { tempScenes } from '@/components/temp/tempJson';
-import {
-  SeeDanceImageToVideoResponse,
-  TaskResponse,
-} from '../../app/api/seedance/clip-gen/[id]/route';
+import { SeeDanceImageToVideoResponse } from '../../app/api/seedance/clip-gen/[id]/route';
 import { KlingImageToVideoResponse } from '../../app/api/kling/clip-gen/[id]/route';
-import { KlingImageToVideoStatusResponse } from '../../app/api/kling/[id]/route';
 import { useAIConfigStore } from '@/lib/maker/useAiConfigStore';
 import ConfigModal from '@/components/maker/ConfigModal';
-import { buildClipPromptText } from '@/lib/maker/clipPromptBuilder';
 import { useAuthStore } from '@/lib/shared/useAuthStore';
 import { reportUsage } from '@/lib/shared/usage';
 import { useSceneClipPolling } from '@/lib/maker/useClipPolling';

@@ -4,8 +4,8 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
 export type AspectRatio = '1:1' | '4:3' | '3:4' | '16:9' | '9:16' | '21:9';
-export type ImageAIType = 'gemini' | 'gpt';
-export type ClipAIType = 'kling' | 'seedance';
+export type ImageAIType = 'Gemini' | 'GPT';
+export type ClipAIType = 'Kling' | 'Seedance';
 
 export interface RefImage {
   id: string;
@@ -23,13 +23,12 @@ type AIConfigState = {
   resolution: number;
   imageAiType: ImageAIType;
   clipAiType: ClipAIType;
-  duration: number; // seconds
+  duration: number;
   refImages: RefImage[];
   customRule: string;
 };
 
 type AIConfigActions = {
-  // 개별 setter
   setModalOpen: (v: boolean) => void;
   setGlobalStyle: (v: string) => void;
   setRatio: (v: AspectRatio) => void;
@@ -61,8 +60,8 @@ const DEFAULT: AIConfigState = {
   globalStyle: 'A masterpiece Japanese style anime illustration',
   ratio: '9:16',
   resolution: 720,
-  imageAiType: 'gemini',
-  clipAiType: 'kling',
+  imageAiType: 'Gemini',
+  clipAiType: 'Seedance',
   duration: 5,
   refImages: [],
   customRule: '',

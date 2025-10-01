@@ -19,6 +19,7 @@
 - voice_gen_model varchar(50) not null default 'Bin'         -- Bin, Otani
 - stability double not null default 0.5
 - resolution varchar(10) not null default '480p'             -- 480p, 720p, ...
+- ratio varchar(10) not null default '9:16'                  -- 1:1, 4:3, 3:4, 16:9, 9:16, ...
 - custom_style varchar(200) null
 - split_rule varchar(1200) null
 - created_at timestamp with time zone not null default now()
@@ -76,10 +77,10 @@
 #### Asset Table
 
 - id bigint not null (PK)
-- parents_id varchar(30) not null (FK)
+- parents_id varchar(30) not null (FK)    -- project_id-scene_id
 - version int4 not null default 1
-- user_id bigint not null             -- 단순 조회용
-- type varchar(10) not null           -- narration | clip | image
+- user_id bigint not null                 -- 단순 조회용
+- type varchar(10) not null               -- narration | clip | image
 - storage_url varchar(300) not null
 - metadata json not null default {}
 - created_at timestamp with time zone not null default now()

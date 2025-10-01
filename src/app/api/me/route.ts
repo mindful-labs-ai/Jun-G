@@ -36,6 +36,12 @@ export async function GET() {
     .eq('id', user.id)
     .single();
 
+  const { data: id } = await supabase
+    .from('users')
+    .select('id')
+    .eq('email', user.email)
+    .single();
+
   const tokenUsage = {
     allScene: row?.all_scene_tokens ?? 0,
     oneScene: row?.one_scene_tokens ?? 0,
@@ -57,5 +63,6 @@ export async function GET() {
     email: user.email,
     tokenUsage,
     usedCount,
+    number: id?.id,
   });
 }

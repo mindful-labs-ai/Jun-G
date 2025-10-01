@@ -15,6 +15,7 @@ export type AIKey = keyof UsableAI;
 export type AuthStoreState = {
   userId: string;
   userEmail: string;
+  userNumber: number;
   tokenUsage: UsableAI;
   usedCount: UsableAI;
 };
@@ -30,6 +31,7 @@ export const useAuthStore = create<AuthStoreState & AuthStoreActions>()(
   set => ({
     userId: '',
     userEmail: '',
+    userNumber: 0,
     tokenUsage: {
       allScene: 0,
       oneScene: 0,
@@ -51,6 +53,7 @@ export const useAuthStore = create<AuthStoreState & AuthStoreActions>()(
         userEmail: state.userEmail,
         tokenUsage: state.tokenUsage,
         usedCount: state.usedCount,
+        userNumber: state.userNumber,
       }),
 
     setId: id => set({ userId: id }),

@@ -83,7 +83,7 @@ export const middleware = async (req: NextRequest) => {
           } catch {}
         }
       }
-      if (!redirectTo) redirectTo = '/makerScript';
+      if (!redirectTo) redirectTo = '/project';
       return NextResponse.redirect(new URL(redirectTo, url.origin));
     }
     return NextResponse.next({ request: { headers: req.headers } });
@@ -103,7 +103,7 @@ export const middleware = async (req: NextRequest) => {
           } catch {}
         }
       }
-      if (!redirectTo) redirectTo = '/makerScript';
+      if (!redirectTo) redirectTo = '/project';
       return NextResponse.redirect(new URL(redirectTo, url.origin));
     }
     return NextResponse.next({ request: { headers: req.headers } });

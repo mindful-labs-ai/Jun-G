@@ -33,6 +33,7 @@ export function useAuthHydration() {
           initState({
             userId: me.id,
             userEmail: me.email,
+            userNumber: me.number,
             tokenUsage: me.tokenUsage ?? emptyUsage,
             usedCount: me.usedCount ?? emptyUsage,
           });
@@ -40,6 +41,7 @@ export function useAuthHydration() {
           initState({
             userId: user.id,
             userEmail: user.email ?? '',
+            userNumber: 0,
             tokenUsage: emptyUsage,
             usedCount: emptyUsage,
           });
@@ -48,6 +50,7 @@ export function useAuthHydration() {
         initState({
           userId: '',
           userEmail: '',
+          userNumber: 0,
           tokenUsage: emptyUsage,
           usedCount: emptyUsage,
         });
@@ -63,7 +66,7 @@ export function useAuthHydration() {
               initState({
                 userId: me.id,
                 userEmail: me.email,
-
+                userNumber: me.number,
                 tokenUsage: me.tokenUsage ?? emptyUsage,
                 usedCount: me.usedCount ?? emptyUsage,
               });
@@ -72,6 +75,7 @@ export function useAuthHydration() {
             initState({
               userId: '',
               userEmail: '',
+              userNumber: 0,
               tokenUsage: emptyUsage,
               usedCount: emptyUsage,
             });
