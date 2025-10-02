@@ -13,6 +13,7 @@ import type {
 import ClipPromptEditor from './ClipPromptEditor';
 import ImagePromptEditor from './ImagePromptEditor';
 import SingleSceneRegenerator from './SingleSceneGenerator';
+import { VideoGenModel } from '@/lib/project/types';
 
 type Step = 0 | 1 | 2;
 

@@ -1,5 +1,5 @@
-// deno-lint-ignore-file no-explicit-any
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+/* eslint-disable import/no-unresolved, @typescript-eslint/no-explicit-any */
+// @ts-nocheck
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("URL")!;
@@ -71,7 +71,7 @@ const buildPath = (p: {
   return `${p.userId}/${p.projectId}/${sceneSlug}_v${p.version}.${p.ext}`;
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
   try {
