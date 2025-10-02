@@ -13,7 +13,8 @@ const MakerScriptPage = () => {
   return (
     <>
       {userId ? (
-        <ScriptInputBox />
+        // <ScriptInputBox />
+        <>이전 됨</>
       ) : (
         <div className='relative'>
           <div className='fixed w-dvw h-dvh flex flex-col gap-2 justify-center items-center z-10'>
