@@ -7,6 +7,7 @@ import {
   useState,
   useCallback,
   useDeferredValue,
+  useLayoutEffect,
 } from 'react';
 import { Button } from '@/components/ui/button';
 import { HelpCircle, Mic, RotateCcw } from 'lucide-react';
@@ -48,6 +49,8 @@ import {
 } from '@/lib/project/utils';
 import { useGetProjectBundle, useUpsertScenes } from '@/lib/project/queries';
 import { saveAsset } from '@/lib/project/project';
+import { useQueryClient } from '@tanstack/react-query';
+import { QUERY_KEY } from '@/lib/shared/constant';
 
 type ClipJob = { sceneId: string; aiType: VideoGenModel };
 
@@ -58,8 +61,8 @@ export const ShortFormMakerRemake = ({
   funnel: FunnelProps;
   state: StateProps;
 }) => {
-  const user = useAuthStore(s => s.tokenUsage);
   const userId = useAuthStore(s => s.userNumber);
+  const queryclient = useQueryClient();
 
   // core state
   const [scenesState, setScenesState] = useState<ScenesState>({
@@ -172,16 +175,67 @@ export const ShortFormMakerRemake = ({
     error,
   } = useGetProjectBundle(funnel.projectIdRef.current, funnel.signal);
 
+  const SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+
+  const toPublicUrl = (storageUrl?: string | null) => {
+    if (!storageUrl) return null;
+    return `${SB_URL}/storage/v1/object/public/${storageUrl}`;
+  };
+
+  useLayoutEffect(() => {
+    if (!bundle || !bundle.assets) return;
+
+    const imagesDict = bundle.assets.imagesByScene ?? {};
+    const clipsDict = bundle.assets.clipsByScene ?? {};
+
+    setImagesByScene(prev => {
+      const next = new Map(prev);
+      Object.entries(imagesDict).forEach(([sceneId, a]: [string, any]) => {
+        const url = a?.public_url ?? toPublicUrl(a?.storage_url);
+
+        if (!url) return;
+
+        const ts =
+          (a?.updated_at ? Date.parse(a.updated_at) : Date.now()) || Date.now();
+
+        next.set(sceneId, {
+          status: 'succeeded',
+          sceneId,
+          dataUrl: url,
+          timestamp: ts,
+          confirmed: false,
+        });
+      });
+      return next;
+    });
+
+    setClipsByScene(prev => {
+      const next = new Map(prev);
+      Object.entries(clipsDict).forEach(([sceneId, a]: [string, any]) => {
+        const url = a?.public_url ?? toPublicUrl(a?.storage_url);
+
+        if (!url) return;
+
+        const ts =
+          (a?.updated_at ? Date.parse(a.updated_at) : Date.now()) || Date.now();
+
+        next.set(sceneId, {
+          status: 'succeeded',
+          sceneId,
+          dataUrl: url,
+          timestamp: ts,
+          confirmed: false,
+        });
+      });
+      return next;
+    });
+  }, [bundle]);
+
   const { mutateAsync: upsertScenes } = useUpsertScenes(
     funnel.projectIdRef.current!
   );
 
   /* ============ confirm dialog helpers ============ */
-  const openConfirm = useCallback((type: ResetType, action: () => void) => {
-    setResetType(type);
-    pendingActionRef.current = action;
-    setConfirmOpen(true);
-  }, []);
 
   const confirmMessage = useMemo(() => {
     switch (resetType) {
@@ -677,7 +731,10 @@ export const ShortFormMakerRemake = ({
         userId!
       );
 
-      await upsertScenes(rows);
+      await upsertScenes(rows).then(() => {
+        setImagesByScene(new Map());
+        setClipsByScene(new Map());
+      });
       tokenUsage = usage;
     } catch (error) {
       notify(String(error));
@@ -706,6 +763,8 @@ export const ShortFormMakerRemake = ({
   const handleGenerateImage = useCallback(
     async (sceneId: string, queue?: boolean, opts?: { selected?: boolean }) => {
       const isSelected = !!opts?.selected;
+
+      console.log(sceneId);
 
       if (!queue) {
         if (!uploadedImage) {
@@ -771,12 +830,18 @@ export const ShortFormMakerRemake = ({
             });
             await saveAsset({
               projectId: funnel.projectIdRef.current!,
-              sceneId: currentSceneId,
+              sceneId,
               type: 'image',
               dataUrl: `data:image/png;base64,${response.output[0].result}`,
               metadata: response,
               mimeType: response.output[0].output_format,
-            });
+            }).then(() =>
+              queryclient.invalidateQueries({
+                queryKey: QUERY_KEY.PROJECT_BUNDLE(
+                  funnel.projectIdRef.current!
+                ),
+              })
+            );
           } else {
             throw new Error('Failed to create Image, Please change Prompt.');
           }
@@ -841,12 +906,18 @@ export const ShortFormMakerRemake = ({
             });
             await saveAsset({
               projectId: funnel.projectIdRef.current!,
-              sceneId: currentSceneId,
+              sceneId: sceneId,
               type: 'image',
               dataUrl: `data:image/png;base64,${json.generatedImage}`,
               metadata: json,
               mimeType: 'image/png',
-            });
+            }).then(() =>
+              queryclient.invalidateQueries({
+                queryKey: QUERY_KEY.PROJECT_BUNDLE(
+                  funnel.projectIdRef.current!
+                ),
+              })
+            );
           } else {
             throw new Error('Failed to create Image, Please change Prompt.');
           }
@@ -909,12 +980,18 @@ export const ShortFormMakerRemake = ({
             });
             await saveAsset({
               projectId: funnel.projectIdRef.current!,
-              sceneId: currentSceneId,
+              sceneId: sceneId,
               type: 'image',
               dataUrl: `data:image/png;base64,${response.output[0].result}`,
               metadata: response,
               mimeType: response.output[0].output_format,
-            });
+            }).then(() =>
+              queryclient.invalidateQueries({
+                queryKey: QUERY_KEY.PROJECT_BUNDLE(
+                  funnel.projectIdRef.current!
+                ),
+              })
+            );
           } else {
             throw new Error('Failed to create Image, Please change Prompt.');
           }
@@ -1433,7 +1510,7 @@ export const ShortFormMakerRemake = ({
     setCurrentSceneId(prev =>
       prev && next.byId.has(prev) ? prev : next.order[0] ?? null
     );
-  }, [bundle?.scenes, scenesState]);
+  }, [bundle?.scenes]);
 
   /* ============ Audio: Narration ============ */
   const replaceObjectUrl = (url: string) => {
@@ -1642,8 +1719,9 @@ export const ShortFormMakerRemake = ({
       />
       <Button
         onClick={() => {
-          console.log(scenesState);
-          console.log(user);
+          console.log(imagesByScene);
+          console.log(clipsByScene);
+          console.log(bundle?.assets);
         }}
       >
         테스트

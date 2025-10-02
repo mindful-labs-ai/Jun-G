@@ -1,39 +1,21 @@
 /* eslint-disable import/no-unresolved, @typescript-eslint/no-explicit-any */
 // @ts-nocheck
+
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("ANON_KEY")!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SECRET_KEY")!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SECRET_KEY")!; // service role
 const ASSETS_BUCKET = Deno.env.get("ASSETS_BUCKET") ?? "assets";
-const DEBUG = Deno.env.get("DEBUG") === "1";
 
-const cors = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-const json = (status: number, payload: unknown) =>
-  new Response(JSON.stringify(payload), {
-    status,
-    headers: { "Content-Type": "application/json", ...cors },
-  });
-
-const ok = (payload: unknown) => json(201, payload);
-const err = (status: number, message: string, extra?: Record<string, unknown>) =>
-  json(status, DEBUG ? { error: message, extra } : { error: message });
-
-type Body = {
-  project_id: number;
-  scene_id?: string | null;
-  type: "image" | "clip" | "narration";
-  data_url?: string;
-  file_url?: string;
-  mime_type?: string;
-  metadata?: Record<string, any>;
-};
+const buildStoragePath = (p: {
+  userId: number;
+  projectId: number;
+  sceneKey: string;
+  version: number;
+  ext: string;
+}) => `${p.userId}/${p.projectId}/${p.sceneKey}_v${p.version}.${p.ext}`;
 
 const parseDataUrl = (dataUrl: string) => {
   const m = dataUrl.match(/^data:(.+?);base64,(.+)$/);
@@ -59,110 +41,116 @@ const extFromMime = (mime?: string) => {
   return "bin";
 };
 
-// 저장 경로: assets/{user_id}/{project_id}/{sceneId|narration}_v{version}.{ext}
-const buildPath = (p: {
-  userId: number;
-  projectId: number;
-  sceneId?: string | null;
-  version: number;
-  ext: string;
-}) => {
-  const sceneSlug = p.sceneId ?? "narration";
-  return `${p.userId}/${p.projectId}/${sceneSlug}_v${p.version}.${p.ext}`;
+type Body = {
+  project_id: number;
+  scene_id?: string | null; // image/clip이면 필수, narration이면 null 허용
+  type: "image" | "clip" | "narration";
+  data_url?: string;         // base64 Data URL
+  file_url?: string;         // 외부 URL (seedance 등)
+  mime_type?: string;        // 선택
+  metadata?: Record<string, any>;
 };
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: cors });
+  }
 
   try {
     const auth = req.headers.get("Authorization");
-    if (!auth) return err(401, "Missing Authorization header");
+    if (!auth) {
+      return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
+        status: 401, headers: { "Content-Type": "application/json", ...cors },
+      });
+    }
 
-    // RLS용 (소유권 검증)
+    // RLS 검증용 (소유자 확인)
     const rls = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       global: { headers: { Authorization: auth } },
     });
-    // 권한 작업용
+    // 쓰기/업로드용 (권한 필요)
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const body: Body = await req.json().catch(() => ({} as Body));
+    const body: Body = await req.json();
     const { project_id, scene_id, type, data_url, file_url } = body;
 
+    // 기본 검증
     if (!project_id || !type || (!data_url && !file_url)) {
-      return err(400, "Invalid body", { body });
+      return new Response(JSON.stringify({ error: "Invalid body" }), {
+        status: 400, headers: { "Content-Type": "application/json", ...cors },
+      });
+    }
+    if ((type === "image" || type === "clip") && !scene_id) {
+      return new Response(JSON.stringify({ error: "scene_id required for image/clip" }), {
+        status: 400, headers: { "Content-Type": "application/json", ...cors },
+      });
     }
 
-    // 1) 세션 → 이메일
-    const { data: uinfo, error: uerr } = await rls.auth.getUser();
-    if (uerr || !uinfo?.user?.email) {
-      return err(401, "Unauthorized", { uerr });
+    // 1) 세션 사용자 → email
+    const { data: userInfo, error: userErr } = await rls.auth.getUser();
+    if (userErr || !userInfo?.user?.email) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { "Content-Type": "application/json", ...cors },
+      });
     }
-    const email = uinfo.user.email;
+    const email = userInfo.user.email!;
 
-    // 2) public.users → bigint id
+    // 2) public.users.id (bigint) 조회
     const { data: pubUser, error: pubUserErr } = await admin
       .from("users")
       .select("id, email")
       .eq("email", email)
       .single();
     if (pubUserErr || !pubUser) {
-      return err(403, "User row not found", { email, pubUserErr });
+      return new Response(JSON.stringify({ error: "User row not found" }), {
+        status: 403, headers: { "Content-Type": "application/json", ...cors },
+      });
     }
-    const userId = Number(pubUser.id);
+    const userId = pubUser.id as number;
 
-    // 3) 프로젝트 RLS로 소유권 검증
+    // 3) 프로젝트 소유 검증 (RLS로 접근 가능해야 함)
     const { data: proj, error: projErr } = await rls
       .from("projects")
       .select("id")
       .eq("id", project_id)
       .single();
     if (projErr || !proj) {
-      return err(403, "Forbidden: not owner", { project_id, projErr });
+      return new Response(JSON.stringify({ error: "Forbidden: not owner" }), {
+        status: 403, headers: { "Content-Type": "application/json", ...cors },
+      });
     }
 
-    // 4) parents_id 규칙
-    const parents_id = `${project_id}-${scene_id ?? "narration"}`;
+    // 4) parents_id & sceneKey
+    const sceneKey = scene_id ?? "narration";
+    const parents_id = `${project_id}-${sceneKey}`; // varchar(30) 제한 내 (scene_id가 20자 제한)
     if (parents_id.length > 30) {
-      return err(400, "parents_id too long (>30)", { parents_id });
+      return new Response(JSON.stringify({ error: "parents_id too long (>30)" }), {
+        status: 400, headers: { "Content-Type": "application/json", ...cors },
+      });
     }
 
-    // 5) 바이트/타입 준비
+    // 5) 데이터 바이트 준비 (data_url 우선, fallback: file_url 페치)
     let bytes: Uint8Array;
     let mime = body.mime_type ?? "";
     if (data_url) {
-      try {
-        const parsed = parseDataUrl(data_url);
-        bytes = parsed.bytes;
-        mime = mime || parsed.mime;
-      } catch (e) {
-        return err(400, "Invalid data_url", { message: String(e) });
-      }
+      const parsed = parseDataUrl(data_url);
+      bytes = parsed.bytes;
+      mime = mime || parsed.mime;
     } else {
-      // file_url: HEAD 없이 바로 GET (TOS 등 HEAD 금지 케이스 회피)
-      let res: Response;
-      try {
-        res = await fetch(file_url!, {
-          redirect: "follow",
-          cache: "no-store",
-        });
-      } catch (e) {
-        return err(424, "fetch threw exception", {
-          message: String(e),
-          file_url,
-        });
-      }
-      if (!res.ok) {
-        return err(424, "fetch file_url failed", {
-          status: res.status,
-          file_url,
-        });
-      }
+      const res = await fetch(file_url!);
+      if (!res.ok) throw new Error(`fetch file_url failed: ${res.status}`);
       bytes = new Uint8Array(await res.arrayBuffer());
       mime = mime || res.headers.get("content-type") || "application/octet-stream";
     }
     const ext = extFromMime(mime);
 
-    // 6) 다음 버전 계산
+    // 6) 다음 버전 계산 (assets 기준 max(version)+1)
     const getNextVersion = async () => {
       const { data: row, error } = await admin
         .from("assets")
@@ -172,96 +160,124 @@ Deno.serve(async (req) => {
         .order("version", { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (error) throw error;
+      if (error) throw new Error(`version_query_failed: ${error.message}`);
       return (row?.version ?? 0) + 1;
     };
 
     let version = await getNextVersion();
 
-    // 업로드 함수
-    const uploadAt = async (v: number) => {
-      const objectPath = buildPath({
-        userId,
-        projectId: project_id,
-        sceneId: scene_id ?? null,
-        version: v,
-        ext,
-      });
-      const { error: uploadErr } = await admin.storage
-        .from(ASSETS_BUCKET)
-        .upload(objectPath, bytes, { contentType: mime, upsert: false });
-      return { objectPath, uploadErr };
-    };
+    // 7) 스토리지 업로드
+    const path = buildStoragePath({
+      userId, projectId: project_id, sceneKey, version, ext,
+    });
 
-    // 7) 1차 업로드
-    const first = await uploadAt(version);
-    if (first.uploadErr) {
-      return err(500, "upload failed", { message: first.uploadErr.message });
+    const { error: uploadErr } = await admin
+      .storage
+      .from(ASSETS_BUCKET)
+      .upload(path, bytes, { contentType: mime, upsert: false });
+
+    if (uploadErr) {
+      return new Response(JSON.stringify({ error: `upload_failed: ${uploadErr.message}` }), {
+        status: 500, headers: { "Content-Type": "application/json", ...cors },
+      });
     }
 
-    const storageUrlFor = (path: string) => `${ASSETS_BUCKET}/${path}`;
-
-    // 8) insert 시도
-    const insertOnce = async (v: number, path: string) => {
-      const payload = {
-        parents_id,
-        version: v,
-        user_id: userId,
-        type,
-        storage_url: storageUrlFor(path),
-        metadata: body.metadata ?? {},
-      };
-      const { data, error } = await admin
+    // 8) assets INSERT (경합 시 1회 재시도: unique(parents_id,type,version))
+    const storage_url = `${ASSETS_BUCKET}/${path}`;
+    const insertOnce = async (v: number) => {
+      return await admin
         .from("assets")
-        .insert(payload)
+        .insert({
+          parents_id,
+          version: v,
+          user_id: userId,
+          type,
+          storage_url,
+          metadata: body.metadata ?? {},
+        })
         .select("id, parents_id, version, type, storage_url")
         .single();
-      return { data, error };
     };
 
-    let { data: asset, error: insErr } = await insertOnce(version, first.objectPath);
-
-    // 9) 버전 경합(23505) → 재시도
+    let { data: asset, error: insErr } = await insertOnce(version);
     if (insErr && String((insErr as any).code) === "23505") {
-      // 새 버전 구해서 다시 업로드/insert
-      const prevPath = first.objectPath;
+      // unique_violation → 버전 재조회 후 1회 재시도
       version = await getNextVersion();
-      const second = await uploadAt(version);
-      if (second.uploadErr) {
-        // 2차 업로드도 실패 → 이전 파일 orphan일 수 있으나 보고만
-        return err(500, "re-upload failed after conflict", {
-          message: second.uploadErr.message,
-        });
-      }
-      const secondIns = await insertOnce(version, second.objectPath);
-      asset = secondIns.data;
-      insErr = secondIns.error;
-
-      // 가능하면 이전 업로드 정리(실패해도 무시)
-      try {
-        await admin.storage.from(ASSETS_BUCKET).remove([prevPath]);
-      } catch (_e) {
-        // no-op
-      }
+      const second = await insertOnce(version);
+      asset = second.data;
+      insErr = second.error;
     }
-
     if (insErr || !asset) {
-      return err(500, "insert failed", { message: String(insErr?.message ?? insErr) });
+      return new Response(JSON.stringify({ error: `insert_failed: ${insErr?.message}` }), {
+        status: 500, headers: { "Content-Type": "application/json", ...cors },
+      });
     }
 
-    // 10) OK
-    return ok({
-      ok: true,
-      asset_id: asset.id,
-      parents_id,
-      type,
-      version,
-      bucket: ASSETS_BUCKET,
-      path: asset.storage_url.replace(`${ASSETS_BUCKET}/`, ""), // 경로만
-      storage_url: asset.storage_url,
-      mime,
-    });
+    // 9) 포인터 갱신 (정확한 행만) — 이미지/클립은 scenes, 나레이션은 projects
+    if (type === "image" || type === "clip") {
+      // 반드시 scene_id로 특정 씬 1행만 갱신
+      const { data: srow, error: sErr } = await admin
+        .from("scenes")
+        .select("image_version, clip_version")
+        .eq("project_id", project_id)
+        .eq("scene_id", scene_id!) // 정확 매칭
+        .single();
+
+      if (sErr || !srow) {
+        console.error("scene_not_found_for_pointer", { project_id, scene_id, sErr });
+      } else {
+        const payload: Record<string, number> = {};
+        if (type === "image") {
+          if ((srow.image_version ?? 0) < version) payload.image_version = version;
+        } else {
+          if ((srow.clip_version ?? 0) < version) payload.clip_version = version;
+        }
+        if (Object.keys(payload).length > 0) {
+          const { error: upErr } = await admin
+            .from("scenes")
+            .update(payload)
+            .eq("project_id", project_id)
+            .eq("scene_id", scene_id!);
+          if (upErr) console.error("pointer_update_failed(scenes)", upErr);
+        }
+      }
+    } else {
+      // narration → projects.narration_version
+      const { data: prow, error: pErr } = await admin
+        .from("projects")
+        .select("narration_version")
+        .eq("id", project_id)
+        .single();
+
+      if (pErr || !prow) {
+        console.error("project_not_found_for_pointer", { project_id, pErr });
+      } else if ((prow.narration_version ?? 0) < version) {
+        const { error: upErr } = await admin
+          .from("projects")
+          .update({ narration_version: version })
+          .eq("id", project_id);
+        if (upErr) console.error("pointer_update_failed(projects)", upErr);
+      }
+    }
+
+    // 10) 응답
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        asset_id: asset.id,
+        parents_id,
+        type,
+        version,
+        bucket: ASSETS_BUCKET,
+        path,
+        storage_url,
+      }),
+      { status: 201, headers: { "Content-Type": "application/json", ...cors } }
+    );
   } catch (e: any) {
-    return err(500, "unhandled error", { message: String(e?.message ?? e) });
+    console.error("edge_failed", e);
+    return new Response(JSON.stringify({ error: `edge_failed: ${e?.message ?? String(e)}` }), {
+      status: 500, headers: { "Content-Type": "application/json", ...cors },
+    });
   }
 });

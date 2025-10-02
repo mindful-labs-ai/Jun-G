@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/client';
 import {
+  BundleResponse,
   CreateProjectInput,
   ProjectRow,
   ProjectScriptUpdateInput,
@@ -75,33 +76,28 @@ export const getProjectById = async (projectId: number) => {
 };
 
 // TODO : Edge function으로 통일
-export const getProjectBundle = async (projectId: number) => {
-  const { data: project, error: projectErr } = await supabase
-    .from('projects')
-    .select(
-      'id, user_id, title, description, script, narration_version, created_at, updated_at'
-    )
-    .eq('id', projectId)
-    .maybeSingle();
-  if (projectErr) throw projectErr;
+export const getProjectBundle = async (
+  projectId: number
+): Promise<BundleResponse> => {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) throw new Error('Not logged in');
 
-  const { data: prefs, error: prefErr } = await supabase
-    .from('video_preferences')
-    .select('*')
-    .eq('project_id', projectId)
-    .maybeSingle<VideoPreferenceRow>();
-  if (prefErr) throw prefErr;
+  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/project-bundle`;
 
-  const { data: scenes, error: sceneErr } = await supabase
-    .from('scenes')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('order', { ascending: true });
-  if (sceneErr) throw sceneErr;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ project_id: projectId, signed_url_expires: 3600 }),
+  });
 
-  // TODO : 에셋들 불러오기, 조건문으로 version을 비교하고 가져오기.
-
-  return { project, prefs, scenes };
+  const json = await resp.json();
+  if (!resp.ok) throw new Error(json?.error || 'bundle edge error');
+  return json as BundleResponse;
 };
 
 export const updatePreferences = async (

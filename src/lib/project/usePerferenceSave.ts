@@ -19,12 +19,13 @@ const DEFAULT_PREFS: VideoPreferenceUpdate = {
 
 export const usePreferenceSave = (opts: {
   projectId: number;
+  userId: number;
   local: VideoPreferenceUpdate;
   server?: VideoPreferenceRow | null;
   script: string;
   serverScript: string;
 }) => {
-  const { projectId, local, server, script, serverScript } = opts;
+  const { projectId, local, server, script, serverScript, userId } = opts;
   const base = useMemo<VideoPreferenceUpdate>(
     () =>
       server
@@ -55,7 +56,8 @@ export const usePreferenceSave = (opts: {
   }, [dirtyKeys, local]);
 
   const { mutateAsync, isPending } = useUpdatePreferencesAndScript(
-    projectId ?? null
+    projectId ?? null,
+    userId
   );
 
   const save = useCallback(async () => {

@@ -208,3 +208,23 @@ export type SaveAssetResponse = {
   storage_url: string;
   mime: string;
 };
+
+export type BundleResponse = {
+  project: {
+    id: number;
+    user_id: number;
+    title: string;
+    description: string | null;
+    script: string | null;
+    narration_version: number | null;
+    created_at: string;
+    updated_at: string;
+  } | null;
+  prefs: VideoPreferenceRow | null;
+  scenes: any[];
+  assets?: {
+    imagesByScene: Record<string, any>;
+    clipsByScene: Record<string, any>;
+    narration: any | null;
+  };
+};

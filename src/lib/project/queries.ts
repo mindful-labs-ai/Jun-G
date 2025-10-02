@@ -54,7 +54,10 @@ export const usePrefetchProject = () => {
     });
 };
 
-export const useUpdatePreferencesAndScript = (projectId: number) => {
+export const useUpdatePreferencesAndScript = (
+  projectId: number,
+  userId: number
+) => {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -82,7 +85,7 @@ export const useUpdatePreferencesAndScript = (projectId: number) => {
         queryKey: QUERY_KEY.PROJECT_BUNDLE(projectId),
       });
       queryClient.invalidateQueries({
-        queryKey: QUERY_KEY.PROJECT_LIST(projectId),
+        queryKey: QUERY_KEY.PROJECT_LIST(userId),
       });
     },
   });
