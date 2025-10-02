@@ -20,6 +20,7 @@ import { FunnelProps, StateProps } from '@/lib/project/types';
 import { useGetProjectBundle } from '@/lib/project/queries';
 import { normalizePrefs, shallowDiffKeys } from '../project/utils';
 import { usePreferenceSave } from '../project/usePerferenceSave';
+import { useAuthStore } from '../shared/useAuthStore';
 
 const MIN_CHARACTERS = 120;
 
@@ -31,6 +32,7 @@ export const ScriptInputBox = ({
   state: StateProps;
 }) => {
   const [isValid, setIsValid] = useState(false);
+  const userId = useAuthStore(s => s.userNumber);
 
   const {
     data: bundle,
@@ -40,10 +42,11 @@ export const ScriptInputBox = ({
 
   const { isDirty, save, isSaving } = usePreferenceSave({
     projectId: funnel.projectIdRef.current!,
+    userId,
     local: state.preference,
     server: bundle?.prefs ?? null,
     script: state.script,
-    serverScript: bundle?.project?.script,
+    serverScript: bundle?.project?.script ?? '',
   });
 
   const hydratedForSignalRef = useRef<number | null>(null);
