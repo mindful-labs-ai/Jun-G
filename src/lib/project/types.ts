@@ -1,6 +1,7 @@
 import { QueryObserverResult, RefetchOptions } from '@tanstack/react-query';
 
 export type FunnelProps = {
+  reset: () => void;
   step: number;
   next: () => void;
   prev: () => void;
@@ -92,7 +93,6 @@ export type SceneUpdate = Partial<
   Omit<SceneRow, 'id' | 'project_id' | 'user_id' | 'created_at' | 'updated_at'>
 >;
 
-// ---------- assets ----------
 export type AssetType = 'narration' | 'clip' | 'image';
 
 export interface AssetRow {
@@ -162,3 +162,49 @@ export type VideoPreferenceInsert = {
 export type VideoPreferenceUpdate = Partial<
   Omit<VideoPreferenceRow, 'id' | 'project_id' | 'created_at' | 'updated_at'>
 >;
+
+export type AIGeneratedScene = {
+  id: string;
+  originalText: string;
+  englishPrompt: string;
+  sceneExplain: string;
+  koreanSummary: string;
+  imagePrompt: unknown;
+  clipPrompt: unknown;
+  confirmed: boolean;
+};
+
+export type PrepareOptions = {
+  /** DB 기록할 초기 상태 (default: 'prompt') */
+  status?: SceneStatus;
+  /** order 시작값 (default: 1) */
+  startOrderAt?: number;
+  /** no_subject 기본값 (default: false) */
+  noSubjectDefault?: boolean;
+  /** scene_id 최대 길이 (default: 20) */
+  maxIdLength?: number;
+  /** 이미 DB 등에 존재하는 scene_id 들(충돌 회피용) */
+  existingSceneIds?: string[];
+};
+
+export type SaveAssetInput = {
+  projectId: number;
+  sceneId?: string | null;
+  type: 'image' | 'clip' | 'narration';
+  dataUrl?: string;
+  fileUrl?: string;
+  mimeType?: string;
+  metadata?: Record<string, unknown>; // 임의 메타
+};
+
+export type SaveAssetResponse = {
+  ok: true;
+  asset_id: number;
+  parents_id: string;
+  type: 'image' | 'clip' | 'narration';
+  version: number;
+  bucket: string;
+  path: string;
+  storage_url: string;
+  mime: string;
+};

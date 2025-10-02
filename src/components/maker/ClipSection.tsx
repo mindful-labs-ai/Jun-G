@@ -10,11 +10,12 @@ import {
   Film,
   Clock,
 } from 'lucide-react';
-import { useAIConfigStore } from '@/lib/maker/useAiConfigStore';
 import { buildClipPromptText } from '@/lib/maker/clipPromptBuilder';
+import { VideoGenModel, VideoPreferenceRow } from '@/lib/project/types';
 
 export const ClipSection = ({
   scenes,
+  preference,
   images,
   clips,
   onGenerateClip,
@@ -26,11 +27,12 @@ export const ClipSection = ({
   setSelected,
 }: {
   scenes: Scene[];
+  preference: VideoPreferenceRow | null | undefined;
   images: Map<string, GeneratedImage>;
   clips: Map<string, GeneratedClip>;
   onGenerateClip: (
     sceneId: string,
-    aiType: 'kling' | 'seedance',
+    aiType: VideoGenModel,
     queue?: boolean,
     opts?: {
       selected?: boolean;
@@ -43,19 +45,19 @@ export const ClipSection = ({
     aiType,
   }: {
     sceneId: string;
-    aiType: 'kling' | 'seedance';
+    aiType: VideoGenModel;
   }) => Promise<void>;
   setIdleSceneClip: (sceneId: string) => void;
   selected: Set<string>;
   setSelected: (sceneId: string) => void;
 }) => {
-  const clipAiType = useAIConfigStore(config => config.clipAiType);
+  const clipAiType = preference!.video_gen_model;
 
   const anyClipReady =
     Array.from(clips.values()).filter(c => !!c.dataUrl).length > 0;
 
-  const viewProcess = async (aiType: 'kling' | 'seedance') => {
-    const response = await fetch(`/api/${aiType}/clip-gen/id`, {
+  const viewProcess = async (aiType: VideoGenModel) => {
+    const response = await fetch(`/api/${aiType.toLowerCase()}/clip-gen/id`, {
       method: 'GET',
       cache: 'no-store',
     });
@@ -191,11 +193,14 @@ export const ClipSection = ({
                       className='flex-1'
                       size='sm'
                       variant='outline'
-                      onClick={() =>
+                      onClick={() => {
+                        console.log(scene);
                         onGenerateClip(scene.id, clipAiType, false, {
                           selected: selected.has(scene.id),
-                        })
-                      }
+                        });
+
+                        console.log('zz', scene);
+                      }}
                       disabled={isGenerating || isQueueing}
                     >
                       {isGenerating ? (

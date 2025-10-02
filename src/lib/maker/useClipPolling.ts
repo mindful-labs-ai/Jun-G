@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef } from 'react';
 import { notify } from '@/lib/maker/utils';
 import { reportUsage } from '@/lib/shared/usage';
 import type { GeneratedClip } from '@/lib/maker/types';
+import { saveAsset } from '../project/project';
+import { VideoGenModel } from '../project/types';
 
 type SeedanceTaskResponse = {
   id?: string;
@@ -26,7 +28,8 @@ function isTransient(res: Response) {
 export function useSceneClipPolling(
   setClipsByScene: React.Dispatch<
     React.SetStateAction<Map<string, GeneratedClip>>
-  >
+  >,
+  projectId: number
 ) {
   const timersRef = useRef<Map<string, ReturnType<typeof setInterval>>>(
     new Map()
@@ -169,6 +172,8 @@ export function useSceneClipPolling(
           const url = json?.content?.video_url;
           if (!url) throw new Error('클립 생성 실패');
 
+          console.log(json);
+
           setClipsByScene(prev => {
             const next = new Map(prev);
             next.set(sceneId, {
@@ -182,6 +187,14 @@ export function useSceneClipPolling(
             return next;
           });
 
+          saveAsset({
+            projectId,
+            sceneId: sceneId,
+            type: 'clip',
+            fileUrl: url,
+            metadata: json,
+            mimeType: 'video/mp4',
+          });
           const tokenUsage = json?.usage?.total_tokens ?? 0;
           await reportUsage('clipSeedance', tokenUsage, 1);
 
@@ -213,8 +226,8 @@ export function useSceneClipPolling(
   );
 
   const checkOnce = useCallback(
-    (sceneId: string, aiType: 'kling' | 'seedance', taskId: string) => {
-      return aiType === 'kling'
+    (sceneId: string, aiType: VideoGenModel, taskId: string) => {
+      return aiType === 'Kling'
         ? checkKlingOnce(sceneId, taskId)
         : checkSeedanceOnce(sceneId, taskId);
     },
@@ -224,7 +237,7 @@ export function useSceneClipPolling(
   const startClipPolling = useCallback(
     (
       sceneId: string,
-      aiType: 'kling' | 'seedance',
+      aiType: VideoGenModel,
       taskId: string,
       intervalMs = 5000
     ) => {

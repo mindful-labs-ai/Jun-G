@@ -21,10 +21,12 @@ import {
   HoverCardTrigger,
 } from '../ui/hover-card';
 import { useAIConfigStore } from '@/lib/maker/useAiConfigStore';
+import { VideoGenModel, VideoPreferenceRow } from '@/lib/project/types';
 
 type Props = {
   step: number;
   setStep: (s: number) => void;
+  preference: VideoPreferenceRow | null | undefined;
 
   // scenes
   scenes: Scene[];
@@ -60,7 +62,7 @@ type Props = {
   clips: Map<string, GeneratedClip>;
   onGenerateClip: (
     sceneId: string,
-    aiType: 'kling' | 'seedance',
+    aiType: VideoGenModel,
     queue?: boolean,
     opts?: {
       selected?: boolean;
@@ -74,7 +76,7 @@ type Props = {
     aiType,
   }: {
     sceneId: string;
-    aiType: 'kling' | 'seedance';
+    aiType: VideoGenModel;
   }) => Promise<void>;
   setIdleSceneClip: (sceneId: string) => void;
 };
@@ -88,6 +90,7 @@ const steps = [
 export default function VisualPipeline({
   step,
   setStep,
+  preference,
 
   scenes,
   generatingScenes,
@@ -305,6 +308,7 @@ export default function VisualPipeline({
               <div className='space-y-4'>
                 <ClipSection
                   scenes={scenes}
+                  preference={preference}
                   images={images}
                   clips={clips}
                   onGenerateClip={onGenerateClip}

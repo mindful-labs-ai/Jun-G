@@ -33,10 +33,7 @@ type Props = {
     }
   ) => Promise<void>;
   onConfirmImage?: (imageId: string) => void;
-  onGenerateClip?: (
-    sceneId: string,
-    aiType: 'kling' | 'seedance'
-  ) => Promise<void>;
+  onGenerateClip?: (sceneId: string, aiType: VideoGenModel) => Promise<void>;
   onConfirmClip?: (clipId: string) => void;
 };
 

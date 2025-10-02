@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CreateProjectInput } from './types';
+import { CreateProjectInput, SceneInsert } from './types';
 import {
   createProject,
   getProjectBundle,
   getProjects,
   updatePreferences,
   updateScript,
+  upsertScenes,
 } from './project';
 import { QUERY_KEY } from '../shared/constant';
 
@@ -82,6 +83,20 @@ export const useUpdatePreferencesAndScript = (projectId: number) => {
       });
       queryClient.invalidateQueries({
         queryKey: QUERY_KEY.PROJECT_LIST(projectId),
+      });
+    },
+  });
+};
+
+export const useUpsertScenes = (projectId: number) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (rows: SceneInsert[]) =>
+      await upsertScenes(rows, projectId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: QUERY_KEY.PROJECT_BUNDLE(projectId),
       });
     },
   });

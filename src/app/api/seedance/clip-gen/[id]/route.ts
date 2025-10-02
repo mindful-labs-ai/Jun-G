@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
       : [
           {
             type: 'text',
-            text: `${body.prompt} --resolution ${body.resolution}p --ratio ${body.ratio}`,
+            text: `${body.prompt} --resolution ${body.resolution} --ratio ${body.ratio}`,
           },
           {
             type: 'image_url',
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
 
     const data = await response.json();
 
-    console.log('Seedance Request:', contentBody);
+    console.log(data)
 
     return NextResponse.json(data);
   } catch (error) {

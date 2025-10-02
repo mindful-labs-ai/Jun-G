@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import BlurredShortFormMaker from '../maker/BlurredShortFormMaker';
 import ScriptInputBox from '@/lib/makerScript/ScriptInputBox';
-import ShortFormMaker from '../maker/ShortFormMaker';
+import ShortFormMakerRemake from '../maker/ShortFormMakerRemake';
 import {
   FunnelProps,
   QueryProps,
@@ -38,6 +38,7 @@ const ProjectScreen = () => {
     split_rule: '',
   });
 
+  const reset = useCallback(() => setStep(0), []);
   const next = useCallback(() => setStep(s => Math.min(2, s + 1)), []);
   const prev = useCallback(() => setStep(s => Math.max(0, s - 1)), []);
   const selectProject = useCallback((id: number) => {
@@ -70,8 +71,9 @@ const ProjectScreen = () => {
       selectProject,
       projectIdRef,
       signal,
+      reset,
     }),
-    [step, next, prev, selectProject, signal]
+    [step, next, prev, selectProject, signal, reset]
   );
 
   const query = useMemo<QueryProps>(
@@ -111,7 +113,13 @@ const ProjectScreen = () => {
             {step === 1 && (
               <ScriptInputBox key={signal} funnel={funnel} state={state} />
             )}
-            {step === 2 && <ShortFormMaker key={signal} />}
+            {step === 2 && (
+              <ShortFormMakerRemake
+                key={signal}
+                funnel={funnel}
+                state={state}
+              />
+            )}
           </div>
         )
       ) : (

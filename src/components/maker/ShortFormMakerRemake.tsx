@@ -8,7 +8,6 @@ import {
   useCallback,
   useDeferredValue,
 } from 'react';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { HelpCircle, Mic, RotateCcw } from 'lucide-react';
 import HeaderBar from '@/components/maker/HeaderBar';
@@ -32,20 +31,37 @@ import VisualPipeline from '@/components/maker/VisualPipeLine';
 import { tempScenes } from '@/components/temp/tempJson';
 import { SeeDanceImageToVideoResponse } from '../../app/api/seedance/clip-gen/[id]/route';
 import { KlingImageToVideoResponse } from '../../app/api/kling/clip-gen/[id]/route';
-import { useAIConfigStore } from '@/lib/maker/useAiConfigStore';
 import ConfigModal from '@/components/maker/ConfigModal';
 import { useAuthStore } from '@/lib/shared/useAuthStore';
 import { reportUsage } from '@/lib/shared/usage';
 import { useSceneClipPolling } from '@/lib/maker/useClipPolling';
+import {
+  FunnelProps,
+  SceneRow,
+  StateProps,
+  VideoGenModel,
+} from '@/lib/project/types';
+import {
+  buildScenesState,
+  isSameScenesState,
+  prepareScenesUpsertPayload,
+} from '@/lib/project/utils';
+import { useGetProjectBundle, useUpsertScenes } from '@/lib/project/queries';
+import { saveAsset } from '@/lib/project/project';
 
-type ClipJob = { sceneId: string; aiType: 'Kling' | 'Seedance' };
+type ClipJob = { sceneId: string; aiType: VideoGenModel };
 
-export const ShortFormMaker = () => {
-  const router = useRouter();
+export const ShortFormMakerRemake = ({
+  funnel,
+  state,
+}: {
+  funnel: FunnelProps;
+  state: StateProps;
+}) => {
   const user = useAuthStore(s => s.tokenUsage);
+  const userId = useAuthStore(s => s.userNumber);
 
   // core state
-  const [script, setScript] = useState('');
   const [scenesState, setScenesState] = useState<ScenesState>({
     byId: new Map(),
     order: [],
@@ -65,16 +81,10 @@ export const ShortFormMaker = () => {
     new Set()
   );
 
-  const { startClipPolling, stopClipPolling } =
-    useSceneClipPolling(setClipsByScene);
-
-  // ai config state
-  const customRule = useAIConfigStore(config => config.customRule);
-  const globalStyle = useAIConfigStore(config => config.globalStyle);
-  const imageAiType = useAIConfigStore(config => config.imageAiType);
-  const clipAiType = useAIConfigStore(config => config.clipAiType);
-  const sourceRatio = useAIConfigStore(config => config.ratio);
-  const sourceResolution = useAIConfigStore(config => config.resolution);
+  const { startClipPolling, stopClipPolling } = useSceneClipPolling(
+    setClipsByScene,
+    funnel.projectIdRef.current!
+  );
 
   // UI/flow state
   const [editingScene, setEditingScene] = useState<string | null>(null);
@@ -156,16 +166,15 @@ export const ShortFormMaker = () => {
 
   const allClipsConfirmed = status.clips === scenes.length;
 
-  /* ============ init / cleanup ============ */
-  useEffect(() => {
-    const savedScript = localStorage.getItem('ai-shortform-script');
-    if (!savedScript) {
-      alert('스크립트가 없습니다');
-      router.replace('/');
-      return;
-    }
-    setScript(savedScript);
-  }, [router]);
+  const {
+    data: bundle,
+    isLoading,
+    error,
+  } = useGetProjectBundle(funnel.projectIdRef.current, funnel.signal);
+
+  const { mutateAsync: upsertScenes } = useUpsertScenes(
+    funnel.projectIdRef.current!
+  );
 
   /* ============ confirm dialog helpers ============ */
   const openConfirm = useCallback((type: ResetType, action: () => void) => {
@@ -411,32 +420,6 @@ export const ShortFormMaker = () => {
     }
   };
 
-  /* ============ Script edit ============ */
-  const handleEditScript = () => {
-    setEditingScriptOpen(true);
-    setTempScript(script);
-  };
-
-  const saveScriptChange = () => {
-    const hasDownstream =
-      scenesState.byId.size > 0 ||
-      images.length > 0 ||
-      clips.length > 0 ||
-      !!narration;
-    const apply = () => {
-      setScript(tempScript);
-      localStorage.setItem('ai-shortform-script', tempScript);
-      setScenesState({ byId: new Map(), order: [] });
-      setImagesByScene(new Map());
-      setClipsByScene(new Map());
-      setNarration(null);
-      setEditingScriptOpen(false);
-      notify('스크립트 수정됨, 하위 단계가 모두 초기화되었습니다.');
-    };
-    if (hasDownstream) openConfirm('script', apply);
-    else apply();
-  };
-
   /* ============ Scenes helpers ============ */
   const applyScenes = (list: Scene[]) => {
     const byId = new Map<string, Scene>();
@@ -583,7 +566,7 @@ export const ShortFormMaker = () => {
         clip?.taskUrl &&
         (clip.status === 'pending' || clip.status === 'queueing')
       ) {
-        if (clipAiType === 'Seedance') {
+        if (state.preference.video_gen_model === 'Seedance') {
           try {
             stopClipPolling(sceneId);
             await fetch(`/api/seedance/${clip.taskUrl}`, {
@@ -635,9 +618,9 @@ export const ShortFormMaker = () => {
       scenesState.byId,
       scenesState.order,
       clipsByScene,
-      clipAiType,
       currentSceneId,
       editingScene,
+      state.preference.video_gen_model,
     ]
   );
 
@@ -657,12 +640,8 @@ export const ShortFormMaker = () => {
     });
   };
 
-  const when = <T extends object>(cond: boolean, extra: T) =>
-    cond ? extra : ({} as Partial<T>);
-
   /* ============ Visual: Scenes / Images / Clips ============ */
   const handleGenerateScenes = async () => {
-    if (!script.trim()) return notify('먼저 스크립트를 입력해주세요.');
     if (
       !confirm(
         '기존 장면 프롬프트는 초기화 됩니다. \n스크립트를 장면으로 분해 하시겠습니까?'
@@ -677,7 +656,11 @@ export const ShortFormMaker = () => {
       const res = await fetch('/api/scenes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ script, customRule, globalStyle }),
+        body: JSON.stringify({
+          script: state.script,
+          customRule: state.preference.split_rule,
+          globalStyle: state.preference.custom_style,
+        }),
       });
       if (!res.ok) {
         const { error } = await res.json();
@@ -688,6 +671,13 @@ export const ShortFormMaker = () => {
       applyScenes(text);
       console.log(text);
       notify(`${text.length}개의 장면이 생성되었습니다.`);
+      const rows = prepareScenesUpsertPayload(
+        text,
+        funnel.projectIdRef.current!,
+        userId!
+      );
+
+      await upsertScenes(rows);
       tokenUsage = usage;
     } catch (error) {
       notify(String(error));
@@ -744,11 +734,11 @@ export const ShortFormMaker = () => {
         let tokenUsage;
         try {
           const body = {
-            globalStyle: globalStyle,
+            globalStyle: state.preference.custom_style,
             prompt,
             imageUrl: uploadedImage?.dataUrl,
-            ratio: sourceRatio,
-            resolution: sourceResolution,
+            ratio: state.preference.ratio,
+            resolution: state.preference.resolution,
             noCharacter: true,
           };
 
@@ -779,6 +769,14 @@ export const ShortFormMaker = () => {
               console.log(next);
               return next;
             });
+            await saveAsset({
+              projectId: funnel.projectIdRef.current!,
+              sceneId: currentSceneId,
+              type: 'image',
+              dataUrl: `data:image/png;base64,${response.output[0].result}`,
+              metadata: response,
+              mimeType: response.output[0].output_format,
+            });
           } else {
             throw new Error('Failed to create Image, Please change Prompt.');
           }
@@ -800,16 +798,16 @@ export const ShortFormMaker = () => {
         return;
       }
 
-      if (imageAiType === 'Gemini') {
+      if (state.preference.image_gen_model === 'Gemini') {
         let token;
         try {
           const body = {
-            globalStyle: globalStyle,
+            globalStyle: state.preference.custom_style,
             prompt,
             imageBase64: uploadedImage?.base64,
             imageMimeType: uploadedImage?.mimeType,
-            ratio: sourceRatio,
-            resolution: sourceResolution,
+            ratio: state.preference.ratio,
+            resolution: state.preference.resolution,
           };
 
           const res = await fetch(`/api/image-gen/gemini/${sceneId}`, {
@@ -841,6 +839,14 @@ export const ShortFormMaker = () => {
               console.log(next);
               return next;
             });
+            await saveAsset({
+              projectId: funnel.projectIdRef.current!,
+              sceneId: currentSceneId,
+              type: 'image',
+              dataUrl: `data:image/png;base64,${json.generatedImage}`,
+              metadata: json,
+              mimeType: 'image/png',
+            });
           } else {
             throw new Error('Failed to create Image, Please change Prompt.');
           }
@@ -862,15 +868,15 @@ export const ShortFormMaker = () => {
         return;
       }
 
-      if (imageAiType === 'GPT') {
+      if (state.preference.image_gen_model === 'GPT') {
         let tokenUsage;
         try {
           const body = {
-            globalStyle: globalStyle,
+            globalStyle: state.preference.custom_style,
             prompt,
             imageUrl: uploadedImage?.dataUrl,
-            ratio: sourceRatio,
-            resolution: sourceResolution,
+            ratio: state.preference.ratio,
+            resolution: state.preference.resolution,
             noCharacter: false,
           };
 
@@ -901,6 +907,14 @@ export const ShortFormMaker = () => {
               console.log(next);
               return next;
             });
+            await saveAsset({
+              projectId: funnel.projectIdRef.current!,
+              sceneId: currentSceneId,
+              type: 'image',
+              dataUrl: `data:image/png;base64,${response.output[0].result}`,
+              metadata: response,
+              mimeType: response.output[0].output_format,
+            });
           } else {
             throw new Error('Failed to create Image, Please change Prompt.');
           }
@@ -923,12 +937,12 @@ export const ShortFormMaker = () => {
       }
     },
     [
-      globalStyle,
       scenesState.byId,
+      state.preference.custom_style,
+      state.preference.image_gen_model,
+      state.preference.ratio,
+      state.preference.resolution,
       uploadedImage,
-      imageAiType,
-      sourceRatio,
-      sourceResolution,
     ]
   );
 
@@ -1075,7 +1089,7 @@ export const ShortFormMaker = () => {
 
       const clipId = clipsByScene.get(sceneId)?.taskUrl;
 
-      if (clipAiType === 'Seedance') {
+      if (state.preference.video_gen_model === 'Seedance') {
         try {
           const response = await fetch(`/api/seedance/${clipId}`, {
             method: 'DELETE',
@@ -1103,11 +1117,13 @@ export const ShortFormMaker = () => {
   const handleGenerateClip = useCallback(
     async (
       sceneId: string,
-      aiType: 'Kling' | 'Seedance',
+      aiType: VideoGenModel,
       queue?: boolean,
       opts?: { selected?: boolean }
     ) => {
       const isSelected = opts?.selected;
+
+      console.log(sceneId, isSelected, aiType);
 
       const baseImage = imagesByScene.get(sceneId)?.dataUrl ?? '';
       if (!queue) {
@@ -1141,7 +1157,7 @@ export const ShortFormMaker = () => {
             prompt,
             negative_prompt: null,
             cfg_scale: 0.5,
-            sourceRatio,
+            sourceRatio: state.preference.ratio,
             noSubject: isSelected,
           };
 
@@ -1191,8 +1207,8 @@ export const ShortFormMaker = () => {
             )}, environment_motion : ${JSON.stringify(
               prompt.environment_motion
             )}`,
-            resolution: sourceResolution,
-            ratio: sourceRatio,
+            resolution: state.preference.resolution,
+            ratio: state.preference.ratio,
             baseImage: baseImage,
             noSubject: isSelected,
           };
@@ -1219,7 +1235,7 @@ export const ShortFormMaker = () => {
             return next;
           });
 
-          startClipPolling(sceneId, 'seedance', taskId);
+          startClipPolling(sceneId, 'Seedance', taskId);
         } catch (error) {
           setClipsByScene(prev => {
             const next = new Map(prev);
@@ -1235,7 +1251,12 @@ export const ShortFormMaker = () => {
         }
       }
     },
-    [imagesByScene, scenesState.byId, sourceRatio, sourceResolution]
+    [
+      imagesByScene,
+      scenesState.byId,
+      state.preference.ratio,
+      state.preference.resolution,
+    ]
   );
 
   const enqueueClipJob = useCallback(
@@ -1283,7 +1304,7 @@ export const ShortFormMaker = () => {
     aiType,
   }: {
     sceneId: string;
-    aiType: 'kling' | 'seedance';
+    aiType: VideoGenModel;
   }) => {
     const taskId = clipsByScene.get(sceneId)?.taskUrl;
     if (!taskId) {
@@ -1339,7 +1360,10 @@ export const ShortFormMaker = () => {
 
     let enqueued = 0;
     for (const id of targets) {
-      enqueueClipJob({ sceneId: id, aiType: clipAiType });
+      enqueueClipJob({
+        sceneId: id,
+        aiType: state.preference.video_gen_model!,
+      });
       enqueued++;
     }
 
@@ -1356,7 +1380,7 @@ export const ShortFormMaker = () => {
     imagesByScene,
     enqueueClipJob,
     startClipQueue,
-    clipAiType,
+    state.preference.video_gen_model,
   ]);
 
   const confirmClip = (sceneId: string) => {
@@ -1398,6 +1422,19 @@ export const ShortFormMaker = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const rows = bundle?.scenes as SceneRow[] | undefined;
+    if (!rows) return;
+
+    const next = buildScenesState(rows);
+    if (isSameScenesState(next, scenesState)) return;
+
+    setScenesState(next);
+    setCurrentSceneId(prev =>
+      prev && next.byId.has(prev) ? prev : next.order[0] ?? null
+    );
+  }, [bundle?.scenes, scenesState]);
+
   /* ============ Audio: Narration ============ */
   const replaceObjectUrl = (url: string) => {
     if (narrationObjectUrlRef.current) {
@@ -1425,7 +1462,6 @@ export const ShortFormMaker = () => {
   };
 
   const handleGenerateNarration = async () => {
-    if (!script.trim()) return notify('먼저 스크립트를 입력해주세요.');
     setGeneratingNarration(true);
 
     try {
@@ -1434,7 +1470,7 @@ export const ShortFormMaker = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           voiceId: narrationSettings.model,
-          text: script,
+          text: state.script,
           stability: narrationSettings?.stability
             ? Math.max(0, Math.min(1, narrationSettings.stability / 100))
             : 0.5,
@@ -1574,19 +1610,32 @@ export const ShortFormMaker = () => {
   // 페이지 튕김 방지
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (!script && scenesState.byId.size === 0) return;
+      if (!state.script && scenesState.byId.size === 0) return;
       event.preventDefault();
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [script, scenesState.byId.size]);
+  }, [state.script, scenesState.byId.size]);
 
   /* ============ render ============ */
+
+  if (isLoading)
+    return (
+      <div className='p-8 text-center text-muted-foreground'>
+        프로젝트 불러오는 중…
+      </div>
+    );
+
+  if (error)
+    return (
+      <div className='p-8 text-center text-destructive'>불러오기 실패</div>
+    );
+
   return (
     <div className='min-h-screen bg-background'>
       <HeaderBar
-        onBack={() => router.replace('/')}
-        onEditScript={handleEditScript}
+        onBack={() => funnel.reset()}
+        onEditScript={funnel.prev}
         status={status}
         zipDownloading={zipDownloading}
         onZip={handleZipDownload}
@@ -1605,6 +1654,7 @@ export const ShortFormMaker = () => {
           <VisualPipeline
             step={step}
             setStep={setStep}
+            preference={bundle?.prefs}
             // scenes
             scenes={deferredScenes}
             generatingScenes={generatingScenes}
@@ -1650,7 +1700,7 @@ export const ShortFormMaker = () => {
             onSelect={setCurrentSceneId}
           />
           <SceneCanvas
-            script={script}
+            script={state.script}
             step={step as 0 | 1 | 2}
             scene={currentScene}
             setScenesState={setScenesState}
@@ -1713,7 +1763,7 @@ export const ShortFormMaker = () => {
             </div>
             <div className='flex-1 overflow-y-auto p-4'>
               <NarrationPanel
-                scriptPresent={!!script}
+                scriptPresent={!!state.script}
                 narration={narration}
                 settings={narrationSettings}
                 setSettings={s => setNarrationSettings(s)}
@@ -1761,7 +1811,9 @@ export const ShortFormMaker = () => {
             </div>
 
             <div className='text-sm text-muted-foreground mr-8'>
-              {script ? `스크립트: ${script.length}자` : '스크립트 없음'}
+              {state.script
+                ? `스크립트: ${state.script.length}자`
+                : '스크립트 없음'}
             </div>
           </div>
         </div>
@@ -1785,7 +1837,7 @@ export const ShortFormMaker = () => {
           setEditingScriptOpen(false);
           setTempScript('');
         }}
-        onSave={saveScriptChange}
+        onSave={funnel.prev}
       />
 
       <ConfigModal />
@@ -1793,4 +1845,4 @@ export const ShortFormMaker = () => {
   );
 };
 
-export default ShortFormMaker;
+export default ShortFormMakerRemake;

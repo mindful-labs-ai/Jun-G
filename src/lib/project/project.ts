@@ -3,6 +3,9 @@ import {
   CreateProjectInput,
   ProjectRow,
   ProjectScriptUpdateInput,
+  SaveAssetInput,
+  SaveAssetResponse,
+  SceneInsert,
   VideoPreferenceRow,
   VideoPreferenceUpdate,
 } from './types';
@@ -71,6 +74,7 @@ export const getProjectById = async (projectId: number) => {
   return data as ProjectRow;
 };
 
+// TODO : Edge function으로 통일
 export const getProjectBundle = async (projectId: number) => {
   const { data: project, error: projectErr } = await supabase
     .from('projects')
@@ -130,4 +134,60 @@ export const updateScript = async (input: ProjectScriptUpdateInput) => {
     .single();
 
   if (error) throw new Error(`Script Update Error!`);
+};
+
+// TODO : Edge function으로 통일
+export const upsertScenes = async (rows: SceneInsert[], projectId: number) => {
+  const { error: delErr } = await supabase
+    .from('scenes')
+    .delete()
+    .eq('project_id', projectId);
+  if (delErr) throw new Error('Scenes DeleteError!');
+
+  const { error: insErr } = await supabase
+    .from('scenes')
+    .insert(rows)
+    .select('id, scene_id, "order"');
+  if (insErr) throw new Error('Scenes InsertError!');
+};
+
+export const saveAsset = async (
+  input: SaveAssetInput
+): Promise<SaveAssetResponse> => {
+  const { projectId, sceneId, type, dataUrl, fileUrl, mimeType, metadata } =
+    input;
+
+  if (!dataUrl && !fileUrl) {
+    throw new Error('Provide either dataUrl or fileUrl');
+  }
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session) throw new Error('Not logged in');
+
+  const resp = await fetch(
+    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/upsert-asset`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        project_id: projectId,
+        scene_id: sceneId ?? null, // null이면 서버에서 narration 처리
+        type,
+        data_url: dataUrl,
+        file_url: fileUrl,
+        mime_type: mimeType,
+        metadata,
+      }),
+    }
+  );
+
+  const json = await resp.json();
+  if (!resp.ok) throw new Error(json?.error || 'edge error');
+  return json as SaveAssetResponse;
 };
