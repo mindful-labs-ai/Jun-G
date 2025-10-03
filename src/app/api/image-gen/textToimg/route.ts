@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let userParts: any[] = [];
+    const userParts: any[] = [];
 
     userParts.push({
       text: `Generate ${resolution}p pixel image based on the following prompt: ${prompt}`,
