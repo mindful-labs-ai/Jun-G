@@ -151,7 +151,6 @@ export const GenerateImageWithGemini = () => {
       prompt,
       ratio: selectedRatio,
       resolution: 480,
-      imageDataUrl: primary.dataUrl,
       imageBase64: primary.base64,
       imageMimeType: primary.mimeType,
       additions: additions.map(a => ({
