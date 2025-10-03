@@ -1,20 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
 type CandidatePart = {
   inlineData?: { mimeType?: string; data?: string };
   text?: string;
 };
 
+type AdditionItem = {
+  caption?: string;
+  inlineData: {
+    mimeType: string;
+    data: string;
+  };
+};
+
+const base64ToGenerativePart = (base64Data: string, mimeType: string) => {
+  return {
+    inlineData: {
+      data: base64Data,
+      mimeType,
+    },
+  };
+};
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { prompt, ratio, resolution } = body;
+    const { prompt, ratio, resolution, imageBase64, imageMimeType, additions } =
+      body as {
+        prompt: string;
+        ratio: string;
+        resolution: number;
+        imageBase64?: string;
+        imageMimeType?: string;
+        additions?: AdditionItem[];
+      };
 
     if (!prompt) {
       return NextResponse.json(
@@ -23,35 +48,51 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await genAI
-      .getGenerativeModel({ model: 'gemini-2.5-flash-image-preview' })
-      .generateContent({
-        contents: [
-          {
-            role: 'model',
-            parts: [
-              {
-                text: `Generate image ${ratio} ratio ${resolution}p resolution pixel image`,
-              },
-            ],
-          },
-          {
-            role: 'user',
-            parts: [{ text: JSON.stringify(prompt) }],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.3,
+    let userParts: any[] = [];
+
+    userParts.push({
+      text: `Generate ${resolution}p pixel image based on the following prompt: ${prompt}`,
+    });
+
+    if (imageBase64 && imageMimeType) {
+      userParts.push(base64ToGenerativePart(imageBase64, imageMimeType));
+    }
+
+    if (additions && additions.length > 0) {
+      for (const item of additions) {
+        if (item.caption) {
+          userParts.push({ text: item.caption });
+        }
+        userParts.push(
+          base64ToGenerativePart(item.inlineData.data, item.inlineData.mimeType)
+        );
+      }
+    }
+
+    const contents = [
+      {
+        role: 'user',
+        parts: userParts,
+      },
+    ];
+
+    const response = await genAI.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: contents,
+      config: {
+        responseModalities: ['Image'],
+        imageConfig: {
+          aspectRatio: ratio,
         },
-      });
+      },
+    });
 
-    console.log(result);
+    console.log(contents);
 
-    const tokenUsage = result.response.usageMetadata?.totalTokenCount;
+    console.log(response);
 
-    const response = await result.response;
+    const tokenUsage = response.usageMetadata?.totalTokenCount;
 
-    // 응답 파싱
     let generatedImageBase64: string | null = null;
     let textResponse = '';
 
@@ -67,7 +108,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 리사이즈 완전 제거: 그대로 반환
     return NextResponse.json({
       success: !!generatedImageBase64,
       generatedImage: generatedImageBase64,

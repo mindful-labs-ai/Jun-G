@@ -32,12 +32,26 @@ interface GeneratedImage {
   timestamp: Date;
 }
 
+const ratioArr = [
+  '1:1',
+  '2:3',
+  '3:2',
+  '3:4',
+  '4:3',
+  '4:5',
+  '5:4',
+  '9:16',
+  '16:9',
+  '21:9',
+];
+
 export const GenerateImageWithGemini = () => {
   const [assets, setAssets] = useState<ImageAsset[]>([]);
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedRatio, setSelectedRatio] = useState(ratioArr[0]);
 
   const primary = useMemo(
     () => assets.find(a => a.isPrimary) || assets[0],
@@ -135,8 +149,9 @@ export const GenerateImageWithGemini = () => {
     if (!primary) throw new Error('최소 1장의 참조 이미지가 필요합니다.');
     const payload = {
       prompt,
-      ratio: '1.54:1',
+      ratio: selectedRatio,
       resolution: 480,
+      imageDataUrl: primary.dataUrl,
       imageBase64: primary.base64,
       imageMimeType: primary.mimeType,
       additions: additions.map(a => ({
@@ -163,7 +178,9 @@ export const GenerateImageWithGemini = () => {
 
       const payload = buildPayload();
 
-      const res = await fetch('/api/image-gen/gemini/scene-1', {
+      console.log(payload);
+
+      const res = await fetch('/api/image-gen/textToimg', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -211,7 +228,7 @@ export const GenerateImageWithGemini = () => {
 
       const payload = {
         prompt,
-        ratio: '1.54:1',
+        ratio: selectedRatio,
         resolution: 480,
       };
 
@@ -332,6 +349,22 @@ export const GenerateImageWithGemini = () => {
             </div>
           )}
         </div>
+      </div>
+
+      <div>
+        <h3 className='text-lg font-semibold'>3. 비율 설정</h3>
+        <select
+          value={selectedRatio}
+          onChange={e => setSelectedRatio(e.target.value)}
+          style={{ padding: '8px', fontSize: '16px', borderRadius: '4px' }}
+        >
+          {ratioArr.map(ratio => (
+            <option key={ratio} value={ratio}>
+              {ratio}
+            </option>
+          ))}
+        </select>
+        <span> 선택된 비율 : {selectedRatio}</span>
       </div>
 
       {assets.length > 0 && (
