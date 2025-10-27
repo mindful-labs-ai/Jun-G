@@ -54,6 +54,7 @@ export const GenerateVideoWithUpload = () => {
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastStatusRef = useRef<TaskResponse['status'] | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const savedToHistoryRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     return () => {
@@ -168,6 +169,10 @@ export const GenerateVideoWithUpload = () => {
     setIsPolling(false);
   };
 
+  const resetSavedHistory = () => {
+    savedToHistoryRef.current.clear();
+  };
+
   const startPolling = (id: string) => {
     if (!id) {
       setError('먼저 생성 버튼으로 클립을 만들고 나서 불러오기를 눌러주세요.');
@@ -175,6 +180,7 @@ export const GenerateVideoWithUpload = () => {
     }
     if (isPolling) return;
 
+    resetSavedHistory();
     setIsPolling(true);
     checkSeedanceOnce(id);
 
@@ -215,25 +221,30 @@ export const GenerateVideoWithUpload = () => {
         const videoUrl = jsonData.content?.video_url;
         if (!videoUrl) throw new Error('클립 생성 실패');
 
-        setGeneratedClips(prev => [
-          ...prev,
-          { aiType: 'SEE_DANCE', id: jsonData.id, url: videoUrl },
-        ]);
+        if (!savedToHistoryRef.current.has(jsonData.id)) {
+          setGeneratedClips(prev => [
+            ...prev,
+            { aiType: 'SEE_DANCE', id: jsonData.id, url: videoUrl },
+          ]);
 
-        const tokenUsage = jsonData.usage?.total_tokens;
-        await reportUsage('clipSeedance', tokenUsage, 1);
+          const tokenUsage = jsonData.usage?.total_tokens;
+          await reportUsage('clipSeedance', tokenUsage, 1);
 
-        // Download and save video to our storage
-        await downloadAndSaveVideoToHistory(prompt, videoUrl, {
-          service: 'seedance',
-          duration,
-          ratio,
-          tokenUsage,
-          hasLastFrame: !!uploadedLastFrame,
-          liteModel,
-        });
+          downloadAndSaveVideoToHistory(prompt, videoUrl, {
+            service: 'seedance',
+            duration,
+            ratio,
+            tokenUsage,
+            hasLastFrame: !!uploadedLastFrame,
+            liteModel,
+          }).catch(err => {
+            console.error('Failed to save video to history:', err);
+          });
 
-        notify('완료! 클립을 불러왔습니다.');
+          savedToHistoryRef.current.add(jsonData.id);
+          notify('완료! 클립을 불러왔습니다.');
+        }
+
         stopPolling();
         return 'done';
       }
