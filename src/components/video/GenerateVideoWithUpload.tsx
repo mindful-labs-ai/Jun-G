@@ -13,6 +13,7 @@ import {
 // import { KlingImageToVideoResponse } from '@/app/api/kling/clip-gen/[id]/route';
 import { notify } from '@/lib/gif/utils';
 import { reportUsage } from '@/lib/shared/usage';
+import { downloadAndSaveVideoToHistory } from '@/lib/shared/asset-history-client';
 
 interface UploadedImage {
   name: string;
@@ -221,6 +222,16 @@ export const GenerateVideoWithUpload = () => {
 
         const tokenUsage = jsonData.usage?.total_tokens;
         await reportUsage('clipSeedance', tokenUsage, 1);
+
+        // Download and save video to our storage
+        await downloadAndSaveVideoToHistory(prompt, videoUrl, {
+          service: 'seedance',
+          duration,
+          ratio,
+          tokenUsage,
+          hasLastFrame: !!uploadedLastFrame,
+          liteModel,
+        });
 
         notify('완료! 클립을 불러왔습니다.');
         stopPolling();

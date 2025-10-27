@@ -199,13 +199,19 @@ export const GenerateImageWithGemini = () => {
       }
 
       if (data.generatedImage) {
+        const imageDataUrl = `data:image/png;base64,${data.generatedImage}`;
         setGeneratedImages(prev => [
           ...prev,
           {
-            dataUrl: `data:image/png;base64,${data.generatedImage}`,
+            dataUrl: imageDataUrl,
             timestamp: new Date(),
           },
         ]);
+
+        // Save to history (already saved in backend)
+        if (data.historyId) {
+          console.log('✅ Image saved to history:', data.historyId);
+        }
       }
     } catch (err: any) {
       setError(err?.message || '알 수 없는 오류');
@@ -251,13 +257,19 @@ export const GenerateImageWithGemini = () => {
       }
 
       if (data.generatedImage) {
+        const imageDataUrl = `data:image/png;base64,${data.generatedImage}`;
         setGeneratedImages(prev => [
           ...prev,
           {
-            dataUrl: `data:image/png;base64,${data.generatedImage}`,
+            dataUrl: imageDataUrl,
             timestamp: new Date(),
           },
         ]);
+
+        // Save to history (already saved in backend)
+        if (data.historyId) {
+          console.log('✅ Image saved to history:', data.historyId);
+        }
       }
     } catch (err: any) {
       setError(err?.message || '알 수 없는 오류');

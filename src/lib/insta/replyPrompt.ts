@@ -86,8 +86,8 @@ ${translationNote}
     "author": "@user" | "anonymous",
     "content": "원 댓글 내용 (출력 언어: ${language})",
     "reply": "생성한 답글(1~2문장, 출력 언어: ${language})"${
-    translationSchema ? `,\n    ${translationSchema}` : ''
-  }
+      translationSchema ? `,\n    ${translationSchema}` : ''
+    }
   }
 ]
 
