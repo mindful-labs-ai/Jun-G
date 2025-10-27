@@ -17,17 +17,23 @@ export function useAssetHistory() {
    * List asset history with filters
    */
   const listHistory = useCallback(
-    async (params?: AssetHistoryListParams): Promise<AssetHistoryListResponse | null> => {
+    async (
+      params?: AssetHistoryListParams
+    ): Promise<AssetHistoryListResponse | null> => {
       setLoading(true);
       setError(null);
 
       try {
         const searchParams = new URLSearchParams();
-        if (params?.asset_type) searchParams.set('asset_type', params.asset_type);
+        if (params?.asset_type)
+          searchParams.set('asset_type', params.asset_type);
         if (params?.limit) searchParams.set('limit', params.limit.toString());
-        if (params?.offset) searchParams.set('offset', params.offset.toString());
+        if (params?.offset)
+          searchParams.set('offset', params.offset.toString());
 
-        const response = await fetch(`/api/asset-history?${searchParams.toString()}`);
+        const response = await fetch(
+          `/api/asset-history?${searchParams.toString()}`
+        );
 
         if (!response.ok) {
           throw new Error('Failed to fetch asset history');
@@ -49,52 +55,60 @@ export function useAssetHistory() {
   /**
    * Get recent asset history
    */
-  const getRecent = useCallback(async (limit: number = 10): Promise<AssetHistory[] | null> => {
-    setLoading(true);
-    setError(null);
+  const getRecent = useCallback(
+    async (limit: number = 10): Promise<AssetHistory[] | null> => {
+      setLoading(true);
+      setError(null);
 
-    try {
-      const response = await fetch(`/api/asset-history/recent?limit=${limit}`);
+      try {
+        const response = await fetch(
+          `/api/asset-history/recent?limit=${limit}`
+        );
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch recent history');
+        if (!response.ok) {
+          throw new Error('Failed to fetch recent history');
+        }
+
+        const data = await response.json();
+        return data;
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+        setError(errorMsg);
+        return null;
+      } finally {
+        setLoading(false);
       }
-
-      const data = await response.json();
-      return data;
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-      setError(errorMsg);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   /**
    * Get a specific asset history by ID
    */
-  const getById = useCallback(async (id: string): Promise<AssetHistory | null> => {
-    setLoading(true);
-    setError(null);
+  const getById = useCallback(
+    async (id: string): Promise<AssetHistory | null> => {
+      setLoading(true);
+      setError(null);
 
-    try {
-      const response = await fetch(`/api/asset-history/${id}`);
+      try {
+        const response = await fetch(`/api/asset-history/${id}`);
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch asset history');
+        if (!response.ok) {
+          throw new Error('Failed to fetch asset history');
+        }
+
+        const data = await response.json();
+        return data;
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+        setError(errorMsg);
+        return null;
+      } finally {
+        setLoading(false);
       }
-
-      const data = await response.json();
-      return data;
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-      setError(errorMsg);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   /**
    * Create a new asset history record (for video URLs from external services)
@@ -163,7 +177,10 @@ export function useAssetHistory() {
    * Search asset history by content
    */
   const searchHistory = useCallback(
-    async (query: string, limit: number = 20): Promise<AssetHistory[] | null> => {
+    async (
+      query: string,
+      limit: number = 20
+    ): Promise<AssetHistory[] | null> => {
       setLoading(true);
       setError(null);
 
@@ -222,7 +239,10 @@ export function useAssetHistory() {
    * Update metadata
    */
   const updateMetadata = useCallback(
-    async (id: string, metadata: Record<string, any>): Promise<AssetHistory | null> => {
+    async (
+      id: string,
+      metadata: Record<string, any>
+    ): Promise<AssetHistory | null> => {
       setLoading(true);
       setError(null);
 

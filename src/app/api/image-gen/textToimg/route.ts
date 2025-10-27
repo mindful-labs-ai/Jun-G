@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
             asset_type: 'image',
             metadata: {
               ratio,
-              resolution,
+              resolution: String(resolution),
               tokenUsage,
               hasReferenceImage: !!imageBase64,
               additionsCount: additions?.length || 0,

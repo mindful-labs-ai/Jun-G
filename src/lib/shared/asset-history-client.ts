@@ -7,7 +7,9 @@ export interface SaveAssetHistoryParams {
   metadata?: AssetMetadata;
 }
 
-export async function saveAssetToHistory(params: SaveAssetHistoryParams): Promise<string | null> {
+export async function saveAssetToHistory(
+  params: SaveAssetHistoryParams
+): Promise<string | null> {
   try {
     const response = await fetch('/api/asset-history', {
       method: 'POST',
@@ -120,6 +122,6 @@ export async function downloadAndSaveVideoToHistory(
 export async function batchSaveAssets(
   assets: SaveAssetHistoryParams[]
 ): Promise<Array<string | null>> {
-  const promises = assets.map((asset) => saveAssetToHistory(asset));
+  const promises = assets.map(asset => saveAssetToHistory(asset));
   return Promise.all(promises);
 }

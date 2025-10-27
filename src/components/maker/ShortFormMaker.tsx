@@ -757,7 +757,7 @@ export const ShortFormMaker = () => {
             prompt,
             imageUrl: uploadedImage?.dataUrl,
             ratio: sourceRatio,
-            resolution: sourceResolution,
+            resolution: String(sourceResolution),
             noCharacter: true,
           };
 
@@ -798,7 +798,7 @@ export const ShortFormMaker = () => {
                 service: 'gpt',
                 globalStyle,
                 ratio: sourceRatio,
-                resolution: sourceResolution,
+                resolution: String(sourceResolution),
                 tokenUsage,
                 sceneId,
                 noCharacter: true,
@@ -834,7 +834,7 @@ export const ShortFormMaker = () => {
             imageBase64: uploadedImage?.base64,
             imageMimeType: uploadedImage?.mimeType,
             ratio: sourceRatio,
-            resolution: sourceResolution,
+            resolution: String(sourceResolution),
           };
 
           const res = await fetch(`/api/image-gen/gemini/${sceneId}`, {
@@ -900,7 +900,7 @@ export const ShortFormMaker = () => {
             prompt,
             imageUrl: uploadedImage?.dataUrl,
             ratio: sourceRatio,
-            resolution: sourceResolution,
+            resolution: String(sourceResolution),
             noCharacter: false,
           };
 
@@ -941,7 +941,7 @@ export const ShortFormMaker = () => {
                 service: 'gpt',
                 globalStyle,
                 ratio: sourceRatio,
-                resolution: sourceResolution,
+                resolution: String(sourceResolution),
                 tokenUsage,
                 sceneId,
               }
@@ -1236,7 +1236,7 @@ export const ShortFormMaker = () => {
             )}, environment_motion : ${JSON.stringify(
               prompt.environment_motion
             )}`,
-            resolution: sourceResolution,
+            resolution: String(sourceResolution),
             ratio: sourceRatio,
             baseImage: baseImage,
             noSubject: isSelected,

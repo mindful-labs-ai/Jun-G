@@ -3,15 +3,15 @@ export type AssetType = 'image' | 'video';
 export interface AssetMetadata {
   service?: string;
   ratio?: string;
-  resolution?: string;
+  resolution?: string | number;
   globalStyle?: string;
-  duration?: number;
+  duration?: string | number;
   tokenUsage?: number;
   hasLastFrame?: boolean;
   liteModel?: boolean;
   hasReference?: boolean;
   sceneId?: string;
-  timestamp?: string;
+  timestamp?: string | number;
   [key: string]: unknown;
 }
 

@@ -199,8 +199,8 @@ export class AssetHistoryRepository {
       throw new Error(`Failed to get asset history stats: ${error.message}`);
     }
 
-    const totalImages = data.filter((item) => item.asset_type === 'image').length;
-    const totalVideos = data.filter((item) => item.asset_type === 'video').length;
+    const totalImages = data.filter(item => item.asset_type === 'image').length;
+    const totalVideos = data.filter(item => item.asset_type === 'video').length;
 
     return {
       totalImages,

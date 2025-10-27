@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { downloadAndUploadVideo } from '@/lib/storage/asset-storage';
 import { AssetHistoryRepository } from '@/lib/repositories/asset-history-repository';
-import { unauthorized, badRequest, internalError } from '@/lib/api/error-response';
+import {
+  unauthorized,
+  badRequest,
+  internalError,
+} from '@/lib/api/error-response';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,7 +27,11 @@ export async function POST(request: NextRequest) {
       return badRequest('video_url and original_content are required');
     }
 
-    const storageUrl = await downloadAndUploadVideo(supabase, user.id, video_url);
+    const storageUrl = await downloadAndUploadVideo(
+      supabase,
+      user.id,
+      video_url
+    );
 
     const history = await AssetHistoryRepository.create(user.id, {
       original_content,

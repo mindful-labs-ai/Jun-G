@@ -2,7 +2,10 @@ import { createClient } from '@/lib/supabase/server';
 import { AssetType } from '@/types/asset-history';
 import type { SupabaseClient as SupabaseClientType } from '@supabase/supabase-js';
 
-export function generateStoragePath(userId: string, assetType: AssetType): string {
+export function generateStoragePath(
+  userId: string,
+  assetType: AssetType
+): string {
   const timestamp = Date.now();
   const now = new Date();
   const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -77,7 +80,9 @@ export async function deleteAsset(storageUrl: string): Promise<void> {
 
 export async function getPublicUrl(path: string): Promise<string> {
   const supabase = await createClient();
-  const { data: { publicUrl } } = supabase.storage.from('temp_asset').getPublicUrl(path);
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from('temp_asset').getPublicUrl(path);
 
   return publicUrl;
 }
