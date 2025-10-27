@@ -143,15 +143,12 @@ export async function POST(request: NextRequest) {
         } = await supabase.auth.getUser();
 
         if (user) {
-          // Upload image to storage
           const storageUrl = await uploadBase64Image(
             supabase,
             user.id,
-            generatedImageBase64,
-            prompt
+            generatedImageBase64
           );
 
-          // Save to history
           const history = await AssetHistoryRepository.create(user.id, {
             original_content: prompt,
             storage_url: storageUrl,

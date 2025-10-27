@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import {
   AssetHistory,
+  AssetMetadata,
   CreateAssetHistoryInput,
   AssetHistoryListParams,
   AssetHistoryListResponse,
@@ -139,12 +140,9 @@ export class AssetHistoryRepository {
     }
   }
 
-  /**
-   * Update asset history metadata
-   */
   static async updateMetadata(
     id: string,
-    metadata: Record<string, any>
+    metadata: AssetMetadata
   ): Promise<AssetHistory> {
     const supabase = await createClient();
 
@@ -187,34 +185,27 @@ export class AssetHistoryRepository {
     return data || [];
   }
 
-  /**
-   * Get statistics for user's asset history
-   */
   static async getStats(
     userId: string
   ): Promise<{ totalImages: number; totalVideos: number; total: number }> {
     const supabase = await createClient();
 
-    const { count: totalImages, error: imageError } = await supabase
+    const { data, error } = await supabase
       .from('asset_history')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .eq('asset_type', 'image');
+      .select('asset_type')
+      .eq('user_id', userId);
 
-    const { count: totalVideos, error: videoError } = await supabase
-      .from('asset_history')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .eq('asset_type', 'video');
-
-    if (imageError || videoError) {
-      throw new Error('Failed to get asset history stats');
+    if (error) {
+      throw new Error(`Failed to get asset history stats: ${error.message}`);
     }
 
+    const totalImages = data.filter((item) => item.asset_type === 'image').length;
+    const totalVideos = data.filter((item) => item.asset_type === 'video').length;
+
     return {
-      totalImages: totalImages || 0,
-      totalVideos: totalVideos || 0,
-      total: (totalImages || 0) + (totalVideos || 0),
+      totalImages,
+      totalVideos,
+      total: totalImages + totalVideos,
     };
   }
 }

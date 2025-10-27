@@ -1,21 +1,12 @@
-import { AssetType } from '@/types/asset-history';
-
-/**
- * Client-side utility for saving asset history
- * This should be called after successful asset generation
- */
+import { AssetType, AssetMetadata } from '@/types/asset-history';
 
 export interface SaveAssetHistoryParams {
   originalContent: string;
   storageUrl: string;
   assetType: AssetType;
-  metadata?: Record<string, any>;
+  metadata?: AssetMetadata;
 }
 
-/**
- * Save generated asset to history
- * Silent fail - doesn't throw errors to avoid breaking the main flow
- */
 export async function saveAssetToHistory(params: SaveAssetHistoryParams): Promise<string | null> {
   try {
     const response = await fetch('/api/asset-history', {
@@ -35,7 +26,6 @@ export async function saveAssetToHistory(params: SaveAssetHistoryParams): Promis
     }
 
     const data = await response.json();
-    console.log('✅ Asset saved to history:', data.id);
     return data.id;
   } catch (error) {
     console.error('Error saving asset to history:', error);
@@ -43,14 +33,10 @@ export async function saveAssetToHistory(params: SaveAssetHistoryParams): Promis
   }
 }
 
-/**
- * Save image to history (convenience wrapper)
- * DEPRECATED: Use uploadAndSaveImageToHistory instead to upload to storage
- */
 export async function saveImageToHistory(
   prompt: string,
   imageUrl: string,
-  metadata?: Record<string, any>
+  metadata?: AssetMetadata
 ): Promise<string | null> {
   return saveAssetToHistory({
     originalContent: prompt,
@@ -60,17 +46,10 @@ export async function saveImageToHistory(
   });
 }
 
-/**
- * Upload image (base64 or URL) to storage and save to history
- * Use this for images from GPT, Gemini, etc.
- * @param prompt - Original prompt/content
- * @param imageData - Base64 image data or image URL
- * @param metadata - Optional metadata
- */
 export async function uploadAndSaveImageToHistory(
   prompt: string,
   imageData: string,
-  metadata?: Record<string, any>
+  metadata?: AssetMetadata
 ): Promise<string | null> {
   try {
     const response = await fetch('/api/asset-history/save-image', {
@@ -89,7 +68,6 @@ export async function uploadAndSaveImageToHistory(
     }
 
     const data = await response.json();
-    console.log('✅ Image uploaded and saved to history:', data.id);
     return data.id;
   } catch (error) {
     console.error('Error uploading and saving image:', error);
@@ -97,13 +75,10 @@ export async function uploadAndSaveImageToHistory(
   }
 }
 
-/**
- * Save video/clip to history (convenience wrapper)
- */
 export async function saveVideoToHistory(
   prompt: string,
   videoUrl: string,
-  metadata?: Record<string, any>
+  metadata?: AssetMetadata
 ): Promise<string | null> {
   return saveAssetToHistory({
     originalContent: prompt,
@@ -113,14 +88,10 @@ export async function saveVideoToHistory(
   });
 }
 
-/**
- * Download video from external URL, upload to our storage, and save to history
- * Use this for videos from SeedDance, Kling, etc.
- */
 export async function downloadAndSaveVideoToHistory(
   prompt: string,
   videoUrl: string,
-  metadata?: Record<string, any>
+  metadata?: AssetMetadata
 ): Promise<string | null> {
   try {
     const response = await fetch('/api/asset-history/save-video', {
@@ -139,7 +110,6 @@ export async function downloadAndSaveVideoToHistory(
     }
 
     const data = await response.json();
-    console.log('✅ Video downloaded and saved to history:', data.id);
     return data.id;
   } catch (error) {
     console.error('Error downloading and saving video:', error);
@@ -147,9 +117,6 @@ export async function downloadAndSaveVideoToHistory(
   }
 }
 
-/**
- * Batch save multiple assets
- */
 export async function batchSaveAssets(
   assets: SaveAssetHistoryParams[]
 ): Promise<Array<string | null>> {
