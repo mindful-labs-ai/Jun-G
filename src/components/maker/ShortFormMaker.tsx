@@ -18,6 +18,7 @@ import ScriptEditDialog from '@/components/maker/ScriptEditDialog';
 import SceneRail from '@/components/maker/SceneRail';
 import SceneCanvas from '@/components/maker/SceneCanvas';
 import { notify, nowId, stripDataUrlPrefix } from '@/lib/maker/utils';
+import { uploadAndSaveImageToHistory, downloadAndSaveVideoToHistory } from '@/lib/shared/asset-history-client';
 import {
   GeneratedClip,
   GeneratedImage,
@@ -72,6 +73,9 @@ export const ShortFormMaker = () => {
 
   const { startClipPolling, stopClipPolling } =
     useSceneClipPolling(setClipsByScene);
+
+  // Track which clips have been saved to history
+  const savedToHistoryRef = useRef<Set<string>>(new Set());
 
   // ai config state
   const customRule = useAIConfigStore(config => config.customRule);
@@ -772,18 +776,34 @@ export const ShortFormMaker = () => {
           console.log(response);
 
           if (response.output[0].result) {
+            const imageDataUrl = `data:image/png;base64,${response.output[0].result}`;
             setImagesByScene(prev => {
               const next = new Map(prev);
               next.set(sceneId, {
                 status: 'succeeded',
                 sceneId,
-                dataUrl: `data:image/png;base64,${response.output[0].result}`,
+                dataUrl: imageDataUrl,
                 timestamp: Date.now(),
                 confirmed: false,
               });
               console.log(next);
               return next;
             });
+
+            // Save to history
+            await uploadAndSaveImageToHistory(
+              typeof prompt === 'string' ? prompt : JSON.stringify(prompt),
+              imageDataUrl,
+              {
+                service: 'gpt',
+                globalStyle,
+                ratio: sourceRatio,
+                resolution: sourceResolution,
+                tokenUsage,
+                sceneId,
+                noCharacter: true,
+              }
+            );
           } else {
             throw new Error('Failed to create Image, Please change Prompt.');
           }
@@ -846,6 +866,11 @@ export const ShortFormMaker = () => {
               console.log(next);
               return next;
             });
+
+            // Save to history (already saved in backend)
+            if (json.historyId) {
+              console.log('✅ Image saved to history:', json.historyId);
+            }
           } else {
             throw new Error('Failed to create Image, Please change Prompt.');
           }
@@ -894,18 +919,33 @@ export const ShortFormMaker = () => {
           console.log(response);
 
           if (response.output[0].result) {
+            const imageDataUrl = `data:image/png;base64,${response.output[0].result}`;
             setImagesByScene(prev => {
               const next = new Map(prev);
               next.set(sceneId, {
                 status: 'succeeded',
                 sceneId,
-                dataUrl: `data:image/png;base64,${response.output[0].result}`,
+                dataUrl: imageDataUrl,
                 timestamp: Date.now(),
                 confirmed: false,
               });
               console.log(next);
               return next;
             });
+
+            // Save to history
+            await uploadAndSaveImageToHistory(
+              typeof prompt === 'string' ? prompt : JSON.stringify(prompt),
+              imageDataUrl,
+              {
+                service: 'gpt',
+                globalStyle,
+                ratio: sourceRatio,
+                resolution: sourceResolution,
+                tokenUsage,
+                sceneId,
+              }
+            );
           } else {
             throw new Error('Failed to create Image, Please change Prompt.');
           }
@@ -1575,6 +1615,34 @@ export const ShortFormMaker = () => {
   };
 
   const openHelp = () => notify('AI 영상을 한 플랫폼에서 시작해보세요.');
+
+  // Save video clips to history when they succeed
+  useEffect(() => {
+    clipsByScene.forEach((clip, sceneId) => {
+      if (clip.status === 'succeeded' && clip.dataUrl && !savedToHistoryRef.current.has(sceneId)) {
+        const scene = scenesState.byId.get(sceneId);
+        if (scene && scene.clipPrompt) {
+          // Mark as saving to prevent duplicates
+          savedToHistoryRef.current.add(sceneId);
+
+          // Download and save video to our storage
+          const promptText = typeof scene.clipPrompt === 'string'
+            ? scene.clipPrompt
+            : JSON.stringify(scene.clipPrompt);
+
+          downloadAndSaveVideoToHistory(promptText, clip.dataUrl, {
+            service: clipAiType,
+            sceneId,
+            timestamp: clip.timestamp,
+          }).catch((err: any) => {
+            console.error('Failed to save clip to history:', err);
+            // Remove from saved set on error so it can retry
+            savedToHistoryRef.current.delete(sceneId);
+          });
+        }
+      }
+    });
+  }, [clipsByScene, scenesState.byId, clipAiType]);
 
   // 페이지 튕김 방지
   useEffect(() => {

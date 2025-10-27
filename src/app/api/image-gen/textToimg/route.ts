@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
+import { createClient } from '@/lib/supabase/server';
+import { uploadBase64Image } from '@/lib/storage/asset-storage';
+import { AssetHistoryRepository } from '@/lib/repositories/asset-history-repository';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -108,6 +111,46 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Save to history if image was generated successfully
+    let historyId: string | null = null;
+    if (generatedImageBase64) {
+      try {
+        const supabase = await createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (user) {
+          // Upload image to storage
+          const storageUrl = await uploadBase64Image(
+            supabase,
+            user.id,
+            generatedImageBase64,
+            prompt
+          );
+
+          // Save to history
+          const history = await AssetHistoryRepository.create(user.id, {
+            original_content: prompt,
+            storage_url: storageUrl,
+            asset_type: 'image',
+            metadata: {
+              ratio,
+              resolution,
+              tokenUsage,
+              hasReferenceImage: !!imageBase64,
+              additionsCount: additions?.length || 0,
+            },
+          });
+
+          historyId = history.id;
+        }
+      } catch (historyError) {
+        console.error('Failed to save to history:', historyError);
+        // Don't fail the request if history saving fails
+      }
+    }
+
     return NextResponse.json({
       success: !!generatedImageBase64,
       generatedImage: generatedImageBase64,
@@ -115,6 +158,7 @@ export async function POST(request: NextRequest) {
       imageSize: 'original',
       timestamp: new Date().toISOString(),
       tokenUsage: tokenUsage,
+      historyId, // Include history ID in response
     });
   } catch (error) {
     console.error('Gemini API Error:', error);

@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { createClient } from '@/lib/supabase/server';
+import { uploadBase64Image } from '@/lib/storage/asset-storage';
+import { AssetHistoryRepository } from '@/lib/repositories/asset-history-repository';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -130,6 +133,47 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Save to history if image was generated successfully
+    let historyId: string | null = null;
+    if (generatedImageBase64) {
+      try {
+        const supabase = await createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (user) {
+          // Upload image to storage
+          const storageUrl = await uploadBase64Image(
+            supabase,
+            user.id,
+            generatedImageBase64,
+            prompt
+          );
+
+          // Save to history
+          const history = await AssetHistoryRepository.create(user.id, {
+            original_content: prompt,
+            storage_url: storageUrl,
+            asset_type: 'image',
+            metadata: {
+              globalStyle,
+              ratio,
+              resolution,
+              tokenUsage,
+              hasReferenceImage: true,
+              additionsCount: additions?.length || 0,
+            },
+          });
+
+          historyId = history.id;
+        }
+      } catch (historyError) {
+        console.error('Failed to save to history:', historyError);
+        // Don't fail the request if history saving fails
+      }
+    }
+
     // 리사이즈 완전 제거: 그대로 반환
     return NextResponse.json({
       success: !!generatedImageBase64,
@@ -138,6 +182,7 @@ export async function POST(request: NextRequest) {
       imageSize: 'original',
       timestamp: new Date().toISOString(),
       tokenUsage: tokenUsage,
+      historyId, // Include history ID in response
     });
   } catch (error) {
     console.error('Gemini API Error:', error);
