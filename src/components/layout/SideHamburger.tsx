@@ -25,6 +25,7 @@ export const SideHamburger = ({ children }: { children: React.ReactNode }) => {
     { href: '/makerScript', label: '숏폼 메이커' },
     { href: '/insta', label: '인스타 댓글/캡션' },
     { href: '/image', label: '단일 이미지 메이커' },
+    { href: '/image-parallel', label: '병렬 이미지 메이커' },
     { href: '/video', label: '단일 비디오 메이커' },
     { href: '/gif', label: 'gif 메이커' },
     { href: '/history', label: '생성 히스토리' },
