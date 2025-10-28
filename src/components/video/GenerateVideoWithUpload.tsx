@@ -4,7 +4,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Upload, Loader2, X, FileImage, Sparkles } from 'lucide-react';
+import {
+  Upload,
+  Loader2,
+  X,
+  FileImage,
+  Sparkles,
+  Download,
+} from 'lucide-react';
 // import { KlingImageToVideoStatusResponse } from '@/app/api/kling/[id]/route';
 import {
   SeeDanceImageToVideoResponse,
@@ -464,13 +471,12 @@ export const GenerateVideoWithUpload = () => {
   //   console.log(data);
   // };
 
-  // 이미지 다운로드
-  // const downloadImage = (dataUrl: string, index: number) => {
-  //   const link = document.createElement('a');
-  //   link.href = dataUrl;
-  //   link.download = `kling-generated-${index + 1}.mp3`;
-  //   link.click();
-  // };
+  // 비디오 다운로드
+  const downloadVideo = (url: string) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.click();
+  };
 
   // 초기화
   // const reset = () => {
@@ -749,19 +755,31 @@ export const GenerateVideoWithUpload = () => {
       {generatedClips.length !== 0 && (
         <div className='grid grid-cols-3 gap-4'>
           {generatedClips
-            .map((clip, index) => {
+            .slice()
+            .reverse()
+            .map((clip, reversedIndex) => {
               return (
-                <div className='text-center' key={clip.id + index}>
+                <div className='relative group' key={clip.id + reversedIndex}>
                   <video
                     src={clip.url}
                     controls
                     preload='metadata'
                     playsInline
+                    className='w-full rounded-lg'
                   ></video>
+                  <div className='mt-2 flex justify-center'>
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      onClick={() => downloadVideo(clip.url)}
+                    >
+                      <Download className='mr-2 h-4 w-4' />
+                      다운로드
+                    </Button>
+                  </div>
                 </div>
               );
-            })
-            .reverse()}
+            })}
         </div>
       )}
     </div>

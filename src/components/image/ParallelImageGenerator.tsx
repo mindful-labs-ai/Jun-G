@@ -264,9 +264,15 @@ export const ParallelImageGenerator = () => {
   };
 
   const downloadImage = (dataUrl: string, index: number) => {
+    const now = new Date();
+    const pad2 = (n: number) => String(n).padStart(2, '0');
+    const dateStr = `${now.getFullYear()}${pad2(now.getMonth() + 1)}${pad2(now.getDate())}`;
+    const timeStr = `${pad2(now.getHours())}${pad2(now.getMinutes())}`;
+    const timestamp = `${dateStr}-${timeStr}`;
+
     const a = document.createElement('a');
     a.href = dataUrl;
-    a.download = `parallel-generated-${index + 1}.png`;
+    a.download = `${timestamp}-image${pad2(index + 1)}.png`;
     a.click();
   };
 

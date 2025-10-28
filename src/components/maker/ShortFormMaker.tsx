@@ -291,12 +291,18 @@ export const ShortFormMaker = () => {
       const indexOf = (sceneId: string) =>
         Math.max(0, scenesState.order.indexOf(sceneId));
 
+      // Generate timestamp for filenames (YYYYMMDD-HHMM format)
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}${pad2(now.getMonth() + 1)}${pad2(now.getDate())}`;
+      const timeStr = `${pad2(now.getHours())}${pad2(now.getMinutes())}`;
+      const timestamp = `${dateStr}-${timeStr}`;
+
       await Promise.all(
         okImages.map(async ([sceneId, img]) => {
           const blob = await blobFromUrlOrDataUrl(img.dataUrl!);
           const ext = extFromMime(blob.type) || 'png';
           const idx = indexOf(sceneId);
-          const filename = `scene-${pad2(idx + 1)}-${sceneId}.${ext}`;
+          const filename = `${timestamp}-scene${pad2(idx + 1)}.${ext}`;
           imagesFolder!.file(filename, await blob.arrayBuffer());
         })
       );
@@ -306,7 +312,7 @@ export const ShortFormMaker = () => {
           const blob = await blobFromUrlOrDataUrl(clip.dataUrl!);
           const ext = extFromMime(blob.type) || 'mp4';
           const idx = indexOf(sceneId);
-          const filename = `scene-${pad2(idx + 1)}-${sceneId}.${ext}`;
+          const filename = `${timestamp}-scene${pad2(idx + 1)}.${ext}`;
           clipsFolder!.file(filename, await blob.arrayBuffer());
         })
       );
