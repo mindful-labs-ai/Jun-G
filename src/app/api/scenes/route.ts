@@ -1,11 +1,11 @@
 import { scenePrompt } from '@/lib/maker/prompt';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_SCRIPT_API_KEY! });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,19 +14,26 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: 'script is required' }, { status: 400 });
     }
 
-    const response = await client.responses.create({
-      model: 'gpt-4.1',
-      input: scenePrompt(script, customRule, globalStyle),
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-flash-latest',
+      generationConfig: {
+        temperature: 0.5,
+        responseMimeType: 'application/json',
+      },
     });
 
-    console.log(response);
+    const result = await model.generateContent(
+      scenePrompt(script, customRule, globalStyle)
+    );
 
-    const saver = response.output_text;
+    console.log(result);
 
-    const tokenUsage = response.usage?.total_tokens;
+    const response = result.response;
+    const text = response.text();
+    const tokenUsage = response.usageMetadata?.totalTokenCount;
 
     return NextResponse.json({
-      text: JSON.parse(saver),
+      text: JSON.parse(text),
       usage: tokenUsage,
     });
   } catch (err) {

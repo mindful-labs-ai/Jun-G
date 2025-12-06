@@ -1,24 +1,15 @@
 'use client';
 
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useCallback,
-  useDeferredValue,
-} from 'react';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { HelpCircle, Mic, RotateCcw } from 'lucide-react';
+import ConfigModal from '@/components/maker/ConfigModal';
 import HeaderBar from '@/components/maker/HeaderBar';
 import NarrationPanel from '@/components/maker/NarrationPanel';
 import ResetDialog from '@/components/maker/ResetDialog';
-import ScriptEditDialog from '@/components/maker/ScriptEditDialog';
-import SceneRail from '@/components/maker/SceneRail';
 import SceneCanvas from '@/components/maker/SceneCanvas';
-import { notify, nowId, stripDataUrlPrefix } from '@/lib/maker/utils';
-import { uploadAndSaveImageToHistory, downloadAndSaveVideoToHistory } from '@/lib/shared/asset-history-client';
+import SceneRail from '@/components/maker/SceneRail';
+import ScriptEditDialog from '@/components/maker/ScriptEditDialog';
+import VisualPipeline from '@/components/maker/VisualPipeLine';
+import { tempScenes } from '@/components/temp/tempJson';
+import { Button } from '@/components/ui/button';
 import {
   GeneratedClip,
   GeneratedImage,
@@ -29,20 +20,27 @@ import {
   ScenesState,
   UploadedImage,
 } from '@/lib/maker/types';
-import VisualPipeline from '@/components/maker/VisualPipeLine';
-import { tempScenes } from '@/components/temp/tempJson';
-import {
-  SeeDanceImageToVideoResponse,
-  TaskResponse,
-} from '../../app/api/seedance/clip-gen/[id]/route';
-import { KlingImageToVideoResponse } from '../../app/api/kling/clip-gen/[id]/route';
-import { KlingImageToVideoStatusResponse } from '../../app/api/kling/[id]/route';
 import { useAIConfigStore } from '@/lib/maker/useAiConfigStore';
-import ConfigModal from '@/components/maker/ConfigModal';
-import { buildClipPromptText } from '@/lib/maker/clipPromptBuilder';
-import { useAuthStore } from '@/lib/shared/useAuthStore';
-import { reportUsage } from '@/lib/shared/usage';
 import { useSceneClipPolling } from '@/lib/maker/useClipPolling';
+import { notify, nowId, stripDataUrlPrefix } from '@/lib/maker/utils';
+import {
+  downloadAndSaveVideoToHistory,
+  uploadAndSaveImageToHistory,
+} from '@/lib/shared/asset-history-client';
+import { reportUsage } from '@/lib/shared/usage';
+import { useAuthStore } from '@/lib/shared/useAuthStore';
+import { HelpCircle, Mic, RotateCcw } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { KlingImageToVideoResponse } from '../../app/api/kling/clip-gen/[id]/route';
+import { SeeDanceImageToVideoResponse } from '../../app/api/seedance/clip-gen/[id]/route';
 
 type ClipJob = { sceneId: string; aiType: 'kling' | 'seedance' };
 
@@ -293,7 +291,9 @@ export const ShortFormMaker = () => {
 
       // Generate timestamp for filenames (YYYYMMDD-HHMM format)
       const now = new Date();
-      const dateStr = `${now.getFullYear()}${pad2(now.getMonth() + 1)}${pad2(now.getDate())}`;
+      const dateStr = `${now.getFullYear()}${pad2(now.getMonth() + 1)}${pad2(
+        now.getDate()
+      )}`;
       const timeStr = `${pad2(now.getHours())}${pad2(now.getMinutes())}`;
       const timestamp = `${dateStr}-${timeStr}`;
 
@@ -1625,16 +1625,21 @@ export const ShortFormMaker = () => {
   // Save video clips to history when they succeed
   useEffect(() => {
     clipsByScene.forEach((clip, sceneId) => {
-      if (clip.status === 'succeeded' && clip.dataUrl && !savedToHistoryRef.current.has(sceneId)) {
+      if (
+        clip.status === 'succeeded' &&
+        clip.dataUrl &&
+        !savedToHistoryRef.current.has(sceneId)
+      ) {
         const scene = scenesState.byId.get(sceneId);
         if (scene && scene.clipPrompt) {
           // Mark as saving to prevent duplicates
           savedToHistoryRef.current.add(sceneId);
 
           // Download and save video to our storage
-          const promptText = typeof scene.clipPrompt === 'string'
-            ? scene.clipPrompt
-            : JSON.stringify(scene.clipPrompt);
+          const promptText =
+            typeof scene.clipPrompt === 'string'
+              ? scene.clipPrompt
+              : JSON.stringify(scene.clipPrompt);
 
           downloadAndSaveVideoToHistory(promptText, clip.dataUrl, {
             service: clipAiType,
