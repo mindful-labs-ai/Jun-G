@@ -86,8 +86,8 @@ export const SceneCanvas = ({
               {step === 0
                 ? 'SceneGenerating'
                 : step === 1
-                ? 'ImagePrompt'
-                : 'ClipPrompt'}
+                  ? 'ImagePrompt'
+                  : 'ClipPrompt'}
             </div>
             {step === 0 ? (
               <SingleSceneRegenerator

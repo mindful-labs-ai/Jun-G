@@ -108,14 +108,14 @@ export const ClipSection = ({
               clip?.status === 'queueing'
                 ? '생성 중'
                 : clip?.status === 'pending'
-                ? '요청 중'
-                : clip?.status === 'failed'
-                ? '실패'
-                : clip?.confirmed
-                ? '확정됨'
-                : clip?.status === 'succeeded'
-                ? '완료'
-                : '대기';
+                  ? '요청 중'
+                  : clip?.status === 'failed'
+                    ? '실패'
+                    : clip?.confirmed
+                      ? '확정됨'
+                      : clip?.status === 'succeeded'
+                        ? '완료'
+                        : '대기';
 
             return (
               <div

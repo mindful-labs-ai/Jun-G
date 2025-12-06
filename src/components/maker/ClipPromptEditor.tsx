@@ -47,10 +47,10 @@ export const ClipPromptEditor = ({
       const next = nextIsArr
         ? Array.isArray(nextSrc)
           ? nextSrc.slice()
-          : nextSrc ?? []
+          : (nextSrc ?? [])
         : typeof nextSrc === 'object' && nextSrc !== null
-        ? { ...nextSrc }
-        : {};
+          ? { ...nextSrc }
+          : {};
       curr[k] = next;
       curr = next;
       src = nextSrc;

@@ -81,12 +81,12 @@ export const ImageSection = ({
               image?.status === 'pending'
                 ? '생성 중'
                 : image?.status === 'failed'
-                ? '실패'
-                : image?.confirmed
-                ? '확정됨'
-                : image?.status === 'succeeded'
-                ? '완료'
-                : '대기';
+                  ? '실패'
+                  : image?.confirmed
+                    ? '확정됨'
+                    : image?.status === 'succeeded'
+                      ? '완료'
+                      : '대기';
 
             return (
               <div
