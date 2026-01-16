@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { createClient } from '@/lib/supabase/server';
-import { uploadBase64Image } from '@/lib/storage/asset-storage';
 import { AssetHistoryRepository } from '@/lib/repositories/asset-history-repository';
+import { uploadBase64Image } from '@/lib/storage/asset-storage';
+import { createClient } from '@/lib/supabase/server';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     console.log(inputBody);
 
     const result = await genAI
-      .getGenerativeModel({ model: 'gemini-2.5-flash-image-preview' })
+      .getGenerativeModel({ model: 'gemini-2.5-flash-image' })
       .generateContent({
         contents: inputBody,
         generationConfig: {
